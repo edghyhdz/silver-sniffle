@@ -5,7 +5,7 @@
 #include <curses.h>
 
 namespace NcursesDisplay {
-void Display(int n);
+void Display();
 
 void DisplayMessages(WINDOW *window);
 void SendText(WINDOW *window);

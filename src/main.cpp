@@ -1,8 +1,9 @@
-
+/*
+g++ src/main.cpp src/NcursesDisplay.h src/NcursesDisplay.cpp -lcurses
+*/
 
 #include "NcursesDisplay.h"
 
 int main() {
-    int n = 40; 
-    NcursesDisplay::Display(n); 
+    NcursesDisplay::Display(); 
 }
