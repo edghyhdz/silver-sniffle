@@ -4,12 +4,12 @@
 
 #include <curses.h>
 
-namespace NcursesDisplay {void Display(int n); 
+namespace NcursesDisplay {
+void Display(int n);
 
-void DisplayMessages(WINDOW *window); 
+void DisplayMessages(WINDOW *window);
 void SendText(WINDOW *window);
 
-}
-
+} // namespace NcursesDisplay
 
 #endif
