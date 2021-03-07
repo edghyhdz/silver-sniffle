@@ -8,28 +8,19 @@
 #include <vector>
 #include <assert.h>
 #include <string.h>
-
+#include "utils/utility.h"
 
 static std::mutex mtx;
-
-// ==== suppr_espaces ====== suppress spaces in the end of a string =====
-char *  suppr_espaces(char * chan,char cara) // the last space is replaced by
-{  char *ptc=chan; size_t len,len0;          //.. the char cara 
-     len0=len=strlen(ptc); 
-     while(len>0 && ptc[--len]==' ')
-        ptc[len]='\0';
-     if (len && ++len<len0) ptc[len]=cara;
-return chan; 
-}   // fin de la fonction suppr_espaces
-
-
-void NcursesDisplay::DisplayMessages(WINDOW *window, std::string number) {
+ 
+void NcursesDisplay::DisplayMessages(WINDOW *window, std::string number, viewwin view) {
   mvwprintw(window, 4, 4, number.c_str());
+  std::string test = view.field_1 + "."; 
+  std::string test2 = view.field_2 + "."; 
+  mvwprintw(window, 7, 7, test.c_str());
+  mvwprintw(window, 10, 10, test2.c_str());
 }
 
-
-
-void NcursesDisplay::TextBox() {
+void NcursesDisplay::TextBox(viewwin *view) {
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
   /* Figure out where to put the window */
@@ -44,41 +35,35 @@ void NcursesDisplay::TextBox() {
 
   wattron(fwin, A_BOLD);
   //   box(fwin, 0, 0);
-
+  std::string send_text = "[ENTER] SEND";
+  mvwprintw(fwin, 1, 1, send_text.c_str());
   wattroff(fwin, A_BOLD);
-  for (int i = 0; i < 20; i++) {
-    std::string test = "[ENTER] OK" + std::to_string(i);
-    mvwprintw(fwin, i, 10, test.c_str());
-  }
+
   /* Create the form fields */
   FIELD *fields[4];
-  char printbuf[FIELD_MAX_CHARS + 1];
+  int max_chars = fwin->_maxx - 10; 
+  char printbuf[max_chars + 1];
   fields[0] = NULL;
   for (int i = 0; i < 4; i++) {
-    // fields[i] = new_field(1, fwin->_maxx - 20, i, 0, 0, 0);
-    fields[i] = new_field(1, fwin->_maxx - 15, i, 0, 0, 0);
-    // set_field_back(fields[i], A_REVERSE | A_UNDERLINE);
-    set_field_type(fields[i], TYPE_ALNUM, 6, 0.0, 0.0);
+    fields[i] = new_field(1, max_chars, i, 0, 0, 0);
     field_opts_off(fields[i], O_AUTOSKIP | O_STATIC);
     set_max_field(fields[i], 20);
   }
   
-  snprintf(printbuf, FIELD_MAX_CHARS + 1, "%s", "-");
+  snprintf(printbuf, max_chars + 1, "%s", "-");
   set_field_buffer(fields[0], 0, printbuf);
   set_max_field(fields[0], 20);
-  snprintf(printbuf, FIELD_MAX_CHARS + 1, "%s", "");
+  snprintf(printbuf, max_chars+ 1, "%s", "");
   set_field_buffer(fields[1], 0, printbuf);
-  snprintf(printbuf, FIELD_MAX_CHARS + 1, "%s", "");
+  snprintf(printbuf, max_chars + 1, "%s", "");
   set_field_buffer(fields[2], 0, printbuf);
-  snprintf(printbuf, FIELD_MAX_CHARS + 1, "%s", "");
+  snprintf(printbuf, max_chars + 1, "%s", "");
   set_field_buffer(fields[3], 0, printbuf);
 
   fields[4] = NULL;
 
   /* Create a subwindow for the form fields */
-  WINDOW *fsub = derwin(fwin, 0, fwin->_maxx - 10, 2, 1);
-  //   WINDOW *fsub = derwin(fwin, 0, fwin->_maxx, 2, 1);
-  // WINDOW *fsub = derwin(fwin, 6, 40, 2, 20);
+  WINDOW *fsub = derwin(fwin, 0, max_chars + 5, 2, 1);
   keypad(fsub, TRUE);
 
   /* Create the actual form */
@@ -95,61 +80,92 @@ void NcursesDisplay::TextBox() {
   int savewin = 1;
   int exitloop = 0;
   int ch;
-  size_t leneff; 
+  size_t leneff;
 
   while (!exitloop) {
     mtx.lock();
     box(fwin, 0, 0);
-    leneff = strlen(suppr_espaces(field_buffer(f->current, 0), 0)); 
     mtx.unlock();
     switch (ch = wgetch(fwin)) {
+    case KEY_DOWN:
+      mtx.lock();
+      form_driver(f, REQ_NEXT_FIELD);
+      form_driver(f, REQ_END_LINE);
+      mtx.unlock();
+      break;
+
     case KEY_UP:
       mtx.lock();
       form_driver(f, REQ_PREV_FIELD);
+      form_driver(f, REQ_END_LINE);
+      mtx.unlock();
+      break;
+
+    case KEY_LEFT:
+      mtx.lock();
+      form_driver(f, REQ_PREV_CHAR);
+      mtx.unlock();
+      break;
+
+    case KEY_RIGHT:
+      mtx.lock();
+      form_driver(f, REQ_NEXT_CHAR);
+      mtx.unlock();
+      break;
+
+    // Delete the char before cursor
+    case KEY_BACKSPACE:
+    case 127:
+      mtx.lock();
+      if (f->current == fields[0] && f->curcol == 0) {
+        mtx.unlock(); 
+        break; 
+      }
+      if (f->curcol == 0) {
+        form_driver(f, REQ_PREV_FIELD);
+        form_driver(f, REQ_END_LINE);
+        form_driver(f, REQ_DEL_PREV);
+      } else {
+        form_driver(f, REQ_DEL_PREV);
+      }
+      mtx.unlock();
+      break;
+
+    // Delete the char under the cursor
+    case KEY_DC:
+      mtx.lock();
+      form_driver(f, REQ_DEL_CHAR);
       mtx.unlock();
       break;
     case '\n':
       mtx.lock();
       form_driver(f, REQ_VALIDATION);
+      snprintf(printbuf, strlen(field_buffer(fields[0], 0)) + 1, "%s",
+               field_buffer(fields[0], 0));
+      view->field_1 = Utils::trim(printbuf);
       set_field_buffer(fields[0], 0, "");
       set_field_buffer(fields[1], 0, "");
       set_field_buffer(fields[2], 0, "");
       set_field_buffer(fields[3], 0, "");
-      form_driver(f, REQ_FIRST_FIELD); 
-      form_driver(f, REQ_NEXT_FIELD); 
+      form_driver(f, REQ_FIRST_FIELD);
       mtx.unlock();
-    // case KEY_DOWN:
-    //   mtx.lock();
-    //   form_driver(f, REQ_NEXT_FIELD);
-    //   mtx.unlock();
-    //   break;
-    case KEY_BACKSPACE:
-      mtx.lock();
-      form_driver(f, REQ_DEL_PREV);
-      mtx.unlock();
-      break;
-    case ' ':
-      mtx.lock();
-      form_driver(f, REQ_NEXT_CHAR);
-      
-      
-      if (leneff > 10){
-        form_driver(f, REQ_NEXT_FIELD); 
-      }
-      mtx.unlock();
-      break;
-  
     default:
       mtx.lock();
-      form_driver(f, ch);
-     
-      if (leneff > 10){
-        form_driver(f, REQ_NEXT_FIELD); 
+      if ((f->current == fields[3]) && (f->curcol == max_chars - 2)){
+        mtx.unlock(); 
+        break; 
       }
-
+      form_driver(f, ch);
+      form_driver(f, REQ_VALIDATION);
+      snprintf(printbuf, max_chars + 1, "%s",
+               field_buffer(f->current, 0));
+      leneff = Utils::trim(printbuf).size();
+      if (leneff >= max_chars - 1) {
+        form_driver(f, REQ_NEXT_FIELD);
+      }
       mtx.unlock();
       break;
-    }
+    }   
   }
 
   // if (savewin) {
@@ -186,13 +202,14 @@ void NcursesDisplay::Display() {
   WINDOW *chat_window = newwin(y_max * text_y, x_max * text_x, 0, 0);
   // WINDOW *text_window = newwin(y_max * (1 - text_y), x_max * text_x, y_max
   // *text_y, 0);
-  WINDOW *users_window =
-      newwin(y_max - 1, x_max * (1 - text_x), 0, x_max * text_x);
+  WINDOW *users_window = newwin(y_max - 1, x_max * (1 - text_x), 0, x_max * text_x);
+  viewwin view; 
+  view.field_1 = ""; 
+  view.field_2 = ""; 
+  view.field_3 = ""; 
+  view.field_4 = ""; 
 
-  // Send keys timeout
-  // keypad(text_window, true);
-  // wtimeout(text_window, 10);
-  std::thread t(NcursesDisplay::TextBox);
+  std::thread t(NcursesDisplay::TextBox, &view);
 
   int counter = 0;
   while (1) {
@@ -213,8 +230,8 @@ void NcursesDisplay::Display() {
     box(chat_window, 0, 0);
     box(users_window, 0, 0);
 
-    DisplayMessages(chat_window, std::to_string(counter));
-    DisplayMessages(users_window, std::to_string(counter));
+    DisplayMessages(chat_window, std::to_string(counter), view);
+    DisplayMessages(users_window, std::to_string(counter), view);
 
     mtx.lock();
     wrefresh(chat_window);
