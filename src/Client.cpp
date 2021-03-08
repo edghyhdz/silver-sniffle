@@ -13,10 +13,56 @@
 #include <sstream>
 
 
-Client::Client(char *&ipAddress, char *&portNum, std::string *sendMsg, std::vector<std::string> *responses) : _ipAddress(ipAddress), _portNum(portNum){
-  //	Create a socket
-  this->_sendMsg = sendMsg;
-  this->_responses = responses; 
+// Class definitions
+
+int ArrivingMessages::getSize(){
+  std::lock_guard<std::mutex> lock(_mutex); 
+  return _responses.size(); 
+}
+
+void ArrivingMessages::pushBack(std::string response){
+  std::lock_guard<std::mutex> lock(_mutex); 
+  _responses.push_back(response); 
+}
+
+std::vector<std::string> ArrivingMessages::getResponses(){
+  std::lock_guard<std::mutex> lock(_mutex); 
+  return _responses; 
+}
+
+void ArrivingMessages::setMessage(std::string message){
+  std::lock_guard<std::mutex> lock(_mutex); 
+  _message = message; 
+}
+
+std::string ArrivingMessages::getMessage(){
+  std::lock_guard<std::mutex> lock(_mutex); 
+  return _message; 
+}
+
+bool ArrivingMessages::messageIsEmpty(){
+  std::lock_guard<std::mutex> lock(_mutex); 
+  return _message.empty();
+}
+
+void ArrivingMessages::clearMessage(){
+  std::lock_guard<std::mutex> lock(_mutex); 
+  _message.clear(); 
+}
+
+void Client::pushBack(std::string message){
+  this->_arrivingMessages.pushBack(message); 
+}
+
+void Client::setMessage(std::string message){
+  this->_arrivingMessages.setMessage(message); 
+}
+
+std::vector<std::string> Client::getResponses(){
+  return this->_arrivingMessages.getResponses(); 
+}
+
+Client::Client(char *&ipAddress, char *&portNum) : _ipAddress(ipAddress), _portNum(portNum){
   this->_mtx = new std::mutex();
   this->_updatedResponse = false; 
   this->createConnection(); 
@@ -39,7 +85,7 @@ void Client::runClient(){
       // Get response into output string
       std::ostringstream ss;
       ss << buf;
-      this->_responses->push_back(ss.str()); 
+      this->_arrivingMessages.pushBack(ss.str()); 
     }
     } while(true);
 
@@ -53,11 +99,17 @@ void Client::runSendMessage(){
     do {
       std::this_thread::sleep_for(std::chrono::milliseconds(2)); 
       // If there is a new message
-      if (!_sendMsg->empty()){
-        //		Send to server
-        int sendRes = send(_sockFD, (*_sendMsg).c_str(), (*_sendMsg).size() + 1, 0);
-        _sendMsg->clear(); 
+      if (!this->_arrivingMessages.messageIsEmpty()){
+        // Send to server
+        std::string tempMessage = this->_arrivingMessages.getMessage(); 
+        int sendRes = send(_sockFD, tempMessage.c_str(), tempMessage.size() + 1, 0);
+        this->_arrivingMessages.clearMessage(); 
       }
+      // if (!_sendMsg->empty()){
+      //   //		Send to server
+      //   int sendRes = send(_sockFD, (*_sendMsg).c_str(), (*_sendMsg).size() + 1, 0);
+      //   _sendMsg->clear(); 
+      // }
     } while (true);
 }
 
@@ -100,19 +152,4 @@ int Client::createConnection() {
   }
 
   return 0; 
-}
-
-std::string Client::getResponse() {
-  std::lock_guard<std::mutex> lock(*_mtx);
-  return _response;
-  //   if (this->_updatedResponse) {
-  //     this->_updatedResponse = false;
-  //     return _response;
-  //   }
-  //   return "";
-}
-
-void Client::setResponse(std::string response) {
-  std::lock_guard<std::mutex> lock(*_mtx);
-  _response = response;
 }
