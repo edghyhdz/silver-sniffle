@@ -9,19 +9,47 @@
 #include <assert.h>
 #include <string.h>
 #include "utils/utility.h"
+#include "Client.h"
 
 static std::mutex mtx;
  
-void NcursesDisplay::DisplayMessages(WINDOW *window, std::string number, viewwin view) {
+void NcursesDisplay::DisplayMessages(WINDOW *window, std::string number, viewwin *view, std::vector<std::string> responses, std::string *sendMsg) {
+  std::string message_text; 
+
+  // Format message_text to fit max window size
+  std::string checker = "";  
+  mtx.lock(); 
+  for (std::string &text : view->_fields){
+    message_text += text + " "; 
+    checker += text; 
+    text.clear(); 
+  }
+  mtx.unlock(); 
+  // Clear fields
+
+
+  int response_counter = 0; 
+  for (std::string &response : responses){
+    mvwprintw(window, ++response_counter, 1, (Utils::trim(response)).c_str());
+  }
+
+  if (checker != "") {
+    long timeStamp = std::chrono::duration_cast<std::chrono::seconds>(
+                         std::chrono::system_clock::now().time_since_epoch())
+                         .count();
+    
+
+    *sendMsg = message_text;
+    std::string time_stamp = Utils::timeStampToHReadble(timeStamp);
+    message_text = time_stamp + "|" + message_text; 
+    mvwprintw(window, 1, 1, message_text.c_str());
+  }
+
   mvwprintw(window, 4, 4, number.c_str());
-  std::string test = view.field_1 + "."; 
-  std::string test2 = view.field_2 + "."; 
-  mvwprintw(window, 7, 7, test.c_str());
-  mvwprintw(window, 10, 10, test2.c_str());
 }
 
 void NcursesDisplay::TextBox(viewwin *view) {
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
   /* Figure out where to put the window */
   int ym, xm;
@@ -29,12 +57,10 @@ void NcursesDisplay::TextBox(viewwin *view) {
 
   /* Create a new window and draw the form */
   WINDOW *fwin = newwin(ym * (1 - 0.7), xm * 0.7, ym * 0.7, 0);
-  // WINDOW *fwin = newwin(wheight, wwidth, wy, wx);
   keypad(fwin, TRUE);
   werase(fwin);
 
   wattron(fwin, A_BOLD);
-  //   box(fwin, 0, 0);
   std::string send_text = "[ENTER] SEND";
   mvwprintw(fwin, 1, 1, send_text.c_str());
   wattroff(fwin, A_BOLD);
@@ -50,7 +76,7 @@ void NcursesDisplay::TextBox(viewwin *view) {
     set_max_field(fields[i], 20);
   }
   
-  snprintf(printbuf, max_chars + 1, "%s", "-");
+  snprintf(printbuf, max_chars + 1, "%s", "//");
   set_field_buffer(fields[0], 0, printbuf);
   set_max_field(fields[0], 20);
   snprintf(printbuf, max_chars+ 1, "%s", "");
@@ -140,15 +166,15 @@ void NcursesDisplay::TextBox(viewwin *view) {
     case '\n':
       mtx.lock();
       form_driver(f, REQ_VALIDATION);
-      snprintf(printbuf, strlen(field_buffer(fields[0], 0)) + 1, "%s",
-               field_buffer(fields[0], 0));
-      view->field_1 = Utils::trim(printbuf);
-      set_field_buffer(fields[0], 0, "");
-      set_field_buffer(fields[1], 0, "");
-      set_field_buffer(fields[2], 0, "");
-      set_field_buffer(fields[3], 0, "");
+      for (int i = 0; i < 4; i++) {
+        snprintf(printbuf, max_chars + 1, "%s", field_buffer(fields[i], 0));
+        view->_fields[i] = Utils::trim(printbuf);
+        // Empty field once pressing enter
+        set_field_buffer(fields[i], 0, "");
+      }
       form_driver(f, REQ_FIRST_FIELD);
       mtx.unlock();
+
     default:
       mtx.lock();
       if ((f->current == fields[3]) && (f->curcol == max_chars - 2)){
@@ -157,8 +183,7 @@ void NcursesDisplay::TextBox(viewwin *view) {
       }
       form_driver(f, ch);
       form_driver(f, REQ_VALIDATION);
-      snprintf(printbuf, max_chars + 1, "%s",
-               field_buffer(f->current, 0));
+      snprintf(printbuf, max_chars + 1, "%s", field_buffer(f->current, 0));
       leneff = Utils::trim(printbuf).size();
       if (leneff >= max_chars - 1) {
         form_driver(f, REQ_NEXT_FIELD);
@@ -167,49 +192,34 @@ void NcursesDisplay::TextBox(viewwin *view) {
       break;
     }   
   }
-
-  // if (savewin) {
-  //         form_driver(f, REQ_VALIDATION);
-  //         view->first_coin = field_buffer(fields[0], 0);
-  //         view->second_coin = field_buffer(fields[1], 0);
-  //         view->third_coin = field_buffer(fields[2], 0);
-  //         view->window_range = std::stoi(field_buffer(fields[3], 0));
-  //       }
-
-  /* Clean up */
-  curs_set(0);
-  unpost_form(f);
-  free_form(f);
-  for (int i = 0; i < 4; i++)
-    free_field(fields[i]);
-  delwin(fsub);
-  delwin(fwin);
-  refresh();
-  // return savewin;
 }
 
-void NcursesDisplay::Display() {
+void NcursesDisplay::Display(char *&ipAddress, char *&portNum) {
   initscr();     // start ncurses
   noecho();      // do not print input values
   cbreak();      // terminate ncurses on ctrl + c
   start_color(); // enable color
-
+  std::string sendMsg; 
+  char buffer; 
+  int bytesReceived; 
   std::vector<std::thread> threads;
+  std::vector<std::string> responses;
+
   int x_max{getmaxx(stdscr)};
   int y_max{getmaxy(stdscr)};
   double text_x{0.70}, text_y{0.70};
 
   WINDOW *chat_window = newwin(y_max * text_y, x_max * text_x, 0, 0);
-  // WINDOW *text_window = newwin(y_max * (1 - text_y), x_max * text_x, y_max
-  // *text_y, 0);
   WINDOW *users_window = newwin(y_max - 1, x_max * (1 - text_x), 0, x_max * text_x);
   viewwin view; 
-  view.field_1 = ""; 
-  view.field_2 = ""; 
-  view.field_3 = ""; 
-  view.field_4 = ""; 
-
-  std::thread t(NcursesDisplay::TextBox, &view);
+  for (int i=0; i < 4; i++){
+    view._fields.push_back(""); 
+  }
+  std::shared_ptr<Client> client = std::make_shared<Client>(ipAddress, portNum, &sendMsg, &responses); 
+  
+  threads.emplace_back(std::thread(NcursesDisplay::TextBox, &view));
+  threads.emplace_back(std::thread(&Client::runClient, client)); 
+  threads.emplace_back(std::thread(&Client::runSendMessage, client)); 
 
   int counter = 0;
   while (1) {
@@ -224,14 +234,17 @@ void NcursesDisplay::Display() {
     init_pair(7, COLOR_GREEN, COLOR_WHITE);
     init_pair(8, COLOR_WHITE, COLOR_GREEN);
     init_pair(9, COLOR_WHITE, COLOR_BLACK);
+
     wclear(chat_window);
     wclear(users_window);
 
+    // mvwprintw(users_window, 1, 1, std::to_string(responses.size()).c_str());
+    // mvwprintw(chat_window, 1, 1, std::to_string(responses.size()).c_str());
     box(chat_window, 0, 0);
     box(users_window, 0, 0);
 
-    DisplayMessages(chat_window, std::to_string(counter), view);
-    DisplayMessages(users_window, std::to_string(counter), view);
+    DisplayMessages(chat_window, std::to_string(counter), &view, responses, &sendMsg);
+    // DisplayMessages(users_window, std::to_string(counter), view, responses);
 
     mtx.lock();
     wrefresh(chat_window);
@@ -241,9 +254,10 @@ void NcursesDisplay::Display() {
     mtx.unlock();
 
     // Speed in which it is refreshed
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     counter++;
   }
-  t.join();
+  threads.front().join();
+  std::for_each(threads.begin(), threads.end(), [](std::thread &t) { t.join(); });
   endwin();
 }
