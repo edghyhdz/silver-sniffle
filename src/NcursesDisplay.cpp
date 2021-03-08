@@ -8,15 +8,17 @@
 #include <vector>
 #include <assert.h>
 #include <string.h>
+#include <memory>
 #include "utils/utility.h"
 #include "Client.h"
 
 static std::mutex mtx;
  
-void NcursesDisplay::DisplayMessages(WINDOW *window, std::string number, viewwin *view, std::vector<std::string> responses, std::string *sendMsg) {
+void NcursesDisplay::DisplayMessages(WINDOW *window, viewwin *view, std::shared_ptr<Client> client) {
   std::string message_text; 
 
   // Format message_text to fit max window size
+  // Clear fields
   std::string checker = "";  
   mtx.lock(); 
   for (std::string &text : view->_fields){
@@ -25,12 +27,16 @@ void NcursesDisplay::DisplayMessages(WINDOW *window, std::string number, viewwin
     text.clear(); 
   }
   mtx.unlock(); 
-  // Clear fields
 
+  // Get vector with responses from server
+  std::vector<std::string> responses = client->getResponses(); 
 
   int response_counter = 0; 
   for (std::string &response : responses){
+    int color_print = Utils::messageFromYou(response) ? 0 : 4;
+    wattron(window, COLOR_PAIR(color_print));
     mvwprintw(window, ++response_counter, 1, (Utils::trim(response)).c_str());
+    wattroff(window, COLOR_PAIR(color_print));
   }
 
   if (checker != "") {
@@ -39,13 +45,13 @@ void NcursesDisplay::DisplayMessages(WINDOW *window, std::string number, viewwin
                          .count();
     
 
-    *sendMsg = message_text;
-    std::string time_stamp = Utils::timeStampToHReadble(timeStamp);
-    message_text = time_stamp + "|" + message_text; 
-    mvwprintw(window, 1, 1, message_text.c_str());
+    // Set message to be sent to the server
+    client->setMessage(message_text); 
+
+    // Add your message to be also displayed into this window
+    client->pushBack("YOU: " + message_text); 
   }
 
-  mvwprintw(window, 4, 4, number.c_str());
 }
 
 void NcursesDisplay::TextBox(viewwin *view) {
@@ -199,11 +205,8 @@ void NcursesDisplay::Display(char *&ipAddress, char *&portNum) {
   noecho();      // do not print input values
   cbreak();      // terminate ncurses on ctrl + c
   start_color(); // enable color
-  std::string sendMsg; 
-  char buffer; 
-  int bytesReceived; 
+
   std::vector<std::thread> threads;
-  std::vector<std::string> responses;
 
   int x_max{getmaxx(stdscr)};
   int y_max{getmaxy(stdscr)};
@@ -215,13 +218,12 @@ void NcursesDisplay::Display(char *&ipAddress, char *&portNum) {
   for (int i=0; i < 4; i++){
     view._fields.push_back(""); 
   }
-  std::shared_ptr<Client> client = std::make_shared<Client>(ipAddress, portNum, &sendMsg, &responses); 
+  std::shared_ptr<Client> client = std::make_shared<Client>(ipAddress, portNum); 
   
   threads.emplace_back(std::thread(NcursesDisplay::TextBox, &view));
   threads.emplace_back(std::thread(&Client::runClient, client)); 
   threads.emplace_back(std::thread(&Client::runSendMessage, client)); 
 
-  int counter = 0;
   while (1) {
 
     // std::lock_guard<std::mutex> lock(mtx);
@@ -238,24 +240,20 @@ void NcursesDisplay::Display(char *&ipAddress, char *&portNum) {
     wclear(chat_window);
     wclear(users_window);
 
-    // mvwprintw(users_window, 1, 1, std::to_string(responses.size()).c_str());
-    // mvwprintw(chat_window, 1, 1, std::to_string(responses.size()).c_str());
     box(chat_window, 0, 0);
     box(users_window, 0, 0);
 
-    DisplayMessages(chat_window, std::to_string(counter), &view, responses, &sendMsg);
-    // DisplayMessages(users_window, std::to_string(counter), view, responses);
+    DisplayMessages(chat_window,  &view, client);
 
     mtx.lock();
     wrefresh(chat_window);
-    // wrefresh(text_window);
     wrefresh(users_window);
     refresh();
     mtx.unlock();
 
-    // Speed in which it is refreshed
+    // TODO: Speed should be refreshed based on messagequeue from server
+    // Speed in which it is refreshed 
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    counter++;
   }
   threads.front().join();
   std::for_each(threads.begin(), threads.end(), [](std::thread &t) { t.join(); });

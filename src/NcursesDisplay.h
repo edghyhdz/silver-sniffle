@@ -7,6 +7,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <memory>
 
 class Client; 
 
@@ -18,7 +19,8 @@ namespace NcursesDisplay {
 typedef struct _viewwin viewwin;
 
 void Display(char *&ipAddress, char *&portNum);
-void DisplayMessages(WINDOW *window, std::string number, viewwin *view, std::vector<std::string> responses, std::string *sendMsg); 
+void DisplayMessages(WINDOW *window, viewwin *view, std::shared_ptr<Client> client); 
+// void DisplayMessages(WINDOW *window, viewwin *view, std::vector<std::string> responses, std::string *sendMsg); 
 void TextBox(viewwin *view);
 
 } // namespace NcursesDisplay
