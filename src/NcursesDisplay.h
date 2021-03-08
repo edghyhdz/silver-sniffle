@@ -6,16 +6,19 @@
 #include <curses.h>
 #include <mutex>
 #include <string>
+#include <vector>
+
+class Client; 
 
 struct _viewwin {
-	std::string field_1, field_2, field_3, field_4;
+	std::vector<std::string> _fields; 
 };
 
 namespace NcursesDisplay {
 typedef struct _viewwin viewwin;
 
-void Display();
-void DisplayMessages(WINDOW *window, std::string number, viewwin view); 
+void Display(char *&ipAddress, char *&portNum);
+void DisplayMessages(WINDOW *window, std::string number, viewwin *view, std::vector<std::string> responses, std::string *sendMsg); 
 void TextBox(viewwin *view);
 
 } // namespace NcursesDisplay
