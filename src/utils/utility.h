@@ -3,5 +3,6 @@
 
 #include "trim.h"
 #include "TimeStamp.h"
+#include "FindWord.h"
 
 #endif  // UTILITY_H
