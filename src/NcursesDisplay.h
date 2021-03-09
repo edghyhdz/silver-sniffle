@@ -20,7 +20,7 @@ typedef struct _viewwin viewwin;
 
 void Display(char *&ipAddress, char *&portNum);
 void DisplayMessages(WINDOW *window, viewwin *view, std::shared_ptr<Client> client); 
-// void DisplayMessages(WINDOW *window, viewwin *view, std::vector<std::string> responses, std::string *sendMsg); 
+void DisplayUsers(WINDOW *window, std::shared_ptr<Client> client); 
 void TextBox(viewwin *view);
 
 } // namespace NcursesDisplay
