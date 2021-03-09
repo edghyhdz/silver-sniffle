@@ -11,8 +11,52 @@
 #include <memory>
 #include "utils/utility.h"
 #include "Client.h"
+#include <sstream>
 
 static std::mutex mtx;
+
+// Works as a copy of the chat messages
+// Used as comparison basis to search for new logged users
+static std::vector<std::string> prevMessages; 
+
+// This function will just be superficial
+// Will apend new users to be displayed in the users window
+int addUser(std::string message){
+
+  bool hasNotLeft = Utils::findWord(message, "has joined the chat");
+
+  std::string key;
+  int value;
+
+  if (!hasNotLeft) {
+    std::replace(message.begin(), message.end(), ' ', '_');
+    std::replace(message.begin(), message.end(), '#', ' ');
+    std::replace(message.begin(), message.end(), '_', ' ');
+
+    std::istringstream sline(message);
+    sline >> key >> value;
+    return value; 
+  }
+  return -1; 
+}
+
+void NcursesDisplay::DisplayUsers(WINDOW *window, std::shared_ptr<Client> client){
+  const int column{1}; 
+  int row{1}; 
+
+  std::vector<int> users = client->getUsers();
+
+  wattron(window, A_BOLD);
+  wattron(window, COLOR_PAIR(4));
+  mvwprintw(window, row++, column, "Logged Users:");
+  wattroff(window, COLOR_PAIR(4));
+  wattroff(window, A_BOLD);
+
+  for (int user : users){
+    std::string temp_user = "User: " + std::to_string(user); 
+    mvwprintw(window, row++, column, temp_user.c_str());
+  }
+}
  
 void NcursesDisplay::DisplayMessages(WINDOW *window, viewwin *view, std::shared_ptr<Client> client) {
   std::string message_text; 
@@ -28,12 +72,39 @@ void NcursesDisplay::DisplayMessages(WINDOW *window, viewwin *view, std::shared_
   }
   mtx.unlock(); 
 
-  // Get vector with responses from server
+  // Get vector with responses from server < get this out
   std::vector<std::string> responses = client->getResponses(); 
+
+  // Check for new users
+  if (prevMessages.size() > 0) {
+    int diff = responses.size() - prevMessages.size();
+    // If there are new messages
+    // Get the last <diff> items
+    if (diff > 0) {
+      for (int i = responses.size() - 1; i > responses.size() - diff - 1; i--) {
+        // Check if this response is a new user or not
+        std::string tempResponse = responses[i];
+        int userID = addUser(tempResponse);
+        if (userID != -1) {
+          client->appendUser(userID); 
+        }
+      }
+    } else if (responses.size() == 1) {
+      std::string tempResponse = responses[0];
+      int userID = addUser(tempResponse);
+      if (userID != -1) {
+        client->appendUser(userID);
+        // mvwprintw(window, 5, 6, (std::to_string(userID)).c_str());
+      }
+    }
+  }
+
+  // TODO: Check new responses for users that might have logged in
+  prevMessages = responses; 
 
   int response_counter = 0; 
   for (std::string &response : responses){
-    int color_print = Utils::messageFromYou(response) ? 0 : 4;
+    int color_print = Utils::findWord(response, "YOU: ") ? 0 : 4;
     wattron(window, COLOR_PAIR(color_print));
     mvwprintw(window, ++response_counter, 1, (Utils::trim(response)).c_str());
     wattroff(window, COLOR_PAIR(color_print));
@@ -44,14 +115,12 @@ void NcursesDisplay::DisplayMessages(WINDOW *window, viewwin *view, std::shared_
                          std::chrono::system_clock::now().time_since_epoch())
                          .count();
     
-
     // Set message to be sent to the server
     client->setMessage(message_text); 
 
     // Add your message to be also displayed into this window
     client->pushBack("YOU: " + message_text); 
   }
-
 }
 
 void NcursesDisplay::TextBox(viewwin *view) {
@@ -109,7 +178,6 @@ void NcursesDisplay::TextBox(viewwin *view) {
   curs_set(1);
 
   /* Handle input */
-  int savewin = 1;
   int exitloop = 0;
   int ch;
   size_t leneff;
@@ -244,6 +312,7 @@ void NcursesDisplay::Display(char *&ipAddress, char *&portNum) {
     box(users_window, 0, 0);
 
     DisplayMessages(chat_window,  &view, client);
+    DisplayUsers(users_window, client); 
 
     mtx.lock();
     wrefresh(chat_window);
