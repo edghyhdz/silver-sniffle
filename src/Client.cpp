@@ -11,7 +11,7 @@
 #include <curses.h>
 #include <vector>
 #include <sstream>
-
+#include <algorithm>
 
 // Class definitions
 
@@ -50,6 +50,64 @@ void ArrivingMessages::clearMessage(){
   _message.clear(); 
 }
 
+void ArrivingMessages::setUsers(std::string users) {
+  std::lock_guard<std::mutex> lock(_mutex);
+  std::istringstream sline(users);
+  int n;
+  char c;
+  while (sline >> n >> c && c == ';') {
+    this->_users.push_back(n);
+  }
+}
+
+std::vector<int> ArrivingMessages::getUsers(){
+  std::lock_guard<std::mutex> lock(_mutex);
+  return _users;
+}
+
+void ArrivingMessages::removeUser(std::string message){
+  std::lock_guard<std::mutex> lock(_mutex);
+  // remove user from _users;
+  bool hasNotLeft = Utils::findWord(message, "has left the chat");
+  // bool hasNotLeft = true; 
+
+  std::string key;
+  int value;
+
+  if (!hasNotLeft) {
+    std::replace(message.begin(), message.end(), ' ', '_');
+    std::replace(message.begin(), message.end(), '#', ' ');
+    std::replace(message.begin(), message.end(), '_', ' ');
+
+    std::istringstream sline(message);
+    sline >> key >> value;
+
+    // Remove user that's left
+    _users.erase(std::remove(_users.begin(), _users.end(), value),
+                 _users.end());
+  }
+}
+
+void ArrivingMessages::appendUser(int user){
+  /*  Append from client in NcursesDisplay
+      to _users vector
+      user:   int user number
+  */ 
+  std::lock_guard<std::mutex> lock(_mutex);
+  // Only append if item is not there
+  if ( std::find(_users.begin(), _users.end(), user) == _users.end()){
+    _users.push_back(user);
+  }
+}
+
+void Client::appendUser(int user){
+  this->_arrivingMessages.appendUser(user); 
+}
+
+std::vector<int> Client::getUsers(){
+  return this->_arrivingMessages.getUsers();
+}
+
 void Client::pushBack(std::string message){
   this->_arrivingMessages.pushBack(message); 
 }
@@ -72,9 +130,8 @@ void Client::runClient(){
 
   // While loop:
   char buf[4096];
-  std::string userInput;
 
-  int counter = 0; 
+  bool firstMessage = true; 
   do {
     // Wait for response
     memset(buf, 0, 4096);
@@ -85,16 +142,23 @@ void Client::runClient(){
       // Get response into output string
       std::ostringstream ss;
       ss << buf;
-      this->_arrivingMessages.pushBack(ss.str()); 
+      // First message contains user information
+      if (firstMessage) {
+        this->_arrivingMessages.setUsers(ss.str());
+        firstMessage = false;
+      } else { // All other messages
+        // Check if message is related to user leaving chat
+        this->_arrivingMessages.removeUser(ss.str()); 
+        // Append message to chat vector
+        this->_arrivingMessages.pushBack(ss.str());
+      }
     }
-    } while(true);
+  } while (true);
 
-    //	Close the socket
-    close(_sockFD);
+  //	Close the socket
+  close(_sockFD);
 } 
 
-// TODO: There are lots of shared resources
-// Something could easily go wrong
 void Client::runSendMessage(){
     do {
       std::this_thread::sleep_for(std::chrono::milliseconds(2)); 
@@ -105,11 +169,6 @@ void Client::runSendMessage(){
         int sendRes = send(_sockFD, tempMessage.c_str(), tempMessage.size() + 1, 0);
         this->_arrivingMessages.clearMessage(); 
       }
-      // if (!_sendMsg->empty()){
-      //   //		Send to server
-      //   int sendRes = send(_sockFD, (*_sendMsg).c_str(), (*_sendMsg).size() + 1, 0);
-      //   _sendMsg->clear(); 
-      // }
     } while (true);
 }
 
