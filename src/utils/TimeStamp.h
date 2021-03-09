@@ -4,7 +4,7 @@
 
 namespace Utils {
 // Reference https://stackoverflow.com/a/21303065/13743493
-std::string timeStampToHReadble(const time_t rawtime) {
+inline std::string timeStampToHReadble(const time_t rawtime) {
   struct tm *dt;
   char buffer[30];
   dt = localtime(&rawtime);
