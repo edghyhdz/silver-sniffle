@@ -62,7 +62,7 @@ void NcursesDisplay::DisplayMessages(WINDOW *window, viewwin *view, std::shared_
   std::string message_text; 
 
   // Format message_text to fit max window size
-  // Clear fields
+  // This is the message that was input to the console
   std::string checker = "";  
   mtx.lock(); 
   for (std::string &text : view->_fields){
@@ -74,6 +74,7 @@ void NcursesDisplay::DisplayMessages(WINDOW *window, viewwin *view, std::shared_
 
   // Get vector with responses from server < get this out
   std::vector<std::string> responses = client->getResponses(); 
+  // NcursesDisplay::rollMessageVector(&responses, window->_maxy - 1); 
 
   // Check for new users
   if (prevMessages.size() > 0) {
@@ -81,7 +82,7 @@ void NcursesDisplay::DisplayMessages(WINDOW *window, viewwin *view, std::shared_
     // If there are new messages
     // Get the last <diff> items
     if (diff > 0) {
-      for (int i = responses.size() - 1; i > responses.size() - diff - 1; i--) {
+      for (int i = responses.size() - 1; i > prevMessages.size() - 1; i--) {
         // Check if this response is a new user or not
         std::string tempResponse = responses[i];
         int userID = addUser(tempResponse);
@@ -94,21 +95,12 @@ void NcursesDisplay::DisplayMessages(WINDOW *window, viewwin *view, std::shared_
       int userID = addUser(tempResponse);
       if (userID != -1) {
         client->appendUser(userID);
-        // mvwprintw(window, 5, 6, (std::to_string(userID)).c_str());
       }
     }
   }
 
   // TODO: Check new responses for users that might have logged in
   prevMessages = responses; 
-
-  int response_counter = 0; 
-  for (std::string &response : responses){
-    int color_print = Utils::findWord(response, "YOU: ") ? 0 : 4;
-    wattron(window, COLOR_PAIR(color_print));
-    mvwprintw(window, ++response_counter, 1, (Utils::trim(response)).c_str());
-    wattroff(window, COLOR_PAIR(color_print));
-  }
 
   if (checker != "") {
     long timeStamp = std::chrono::duration_cast<std::chrono::seconds>(
@@ -120,6 +112,24 @@ void NcursesDisplay::DisplayMessages(WINDOW *window, viewwin *view, std::shared_
 
     // Add your message to be also displayed into this window
     client->pushBack("YOU: " + message_text); 
+  }
+
+  int response_counter = 1; 
+  int diff = 0; 
+  int counter = 0; 
+
+  if (responses.size() >= window->_maxy - 1) {
+    diff = responses.size() - window->_maxy + 1; 
+  }
+
+  for (std::string &response : responses) {
+    if (counter >= diff) {
+      int color_print = Utils::findWord(response, "YOU: ") ? 0 : 4;
+      wattron(window, COLOR_PAIR(color_print));
+      mvwprintw(window, response_counter++, 1, (Utils::trim(response)).c_str());
+      wattroff(window, COLOR_PAIR(color_print));
+    }
+    counter++;
   }
 }
 
@@ -293,8 +303,6 @@ void NcursesDisplay::Display(char *&ipAddress, char *&portNum) {
   threads.emplace_back(std::thread(&Client::runSendMessage, client)); 
 
   while (1) {
-
-    // std::lock_guard<std::mutex> lock(mtx);
     init_pair(1, COLOR_BLUE, COLOR_BLACK);
     init_pair(2, COLOR_GREEN, COLOR_BLACK);
     init_pair(3, COLOR_RED, COLOR_BLACK);
