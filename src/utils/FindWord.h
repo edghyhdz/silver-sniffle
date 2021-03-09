@@ -4,10 +4,10 @@
 #include <string>
 
 namespace Utils {
-bool messageFromYou(std::string &sentence) {
+inline bool findWord(std::string &sentence, std::string &&word) {
   int pos = 0;
   while (true) {
-    pos = sentence.find("YOU: ", pos++);
+    pos = sentence.find(word, pos++);
     if (pos != std::string::npos) {
       pos++;
     } else {
