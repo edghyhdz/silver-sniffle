@@ -4,7 +4,6 @@ g++ src/main.cpp src/NcursesDisplay.h src/NcursesDisplay.cpp src/utils/utility.h
 */
 
 #include "NcursesDisplay.h"
-#include "Client.h"
 
 int main(int argc, char *argv[]) {
 
