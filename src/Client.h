@@ -4,6 +4,7 @@
 #include <mutex>
 #include <curses.h>
 #include <vector>
+#include "utils/utility.h"
 
 // Auxiliary class to queue messages in a thread-safe manner
 class ArrivingMessages {
@@ -14,12 +15,17 @@ public:
   void setMessage(std::string message); 
   std::vector<std::string> getResponses();
   std::string getMessage(); 
+  void setUsers(std::string users);
+  void appendUser(int user); 
+  void removeUser(std::string message); 
+  std::vector<int> getUsers(); 
   bool messageIsEmpty(); 
   void clearMessage(); 
 
 private:
   std::vector<std::string> _responses;
   std::string _message; 
+  std::vector<int> _users; 
   std::mutex _mutex;
 };
 
@@ -35,8 +41,10 @@ public:
   void setMessage(std::string message); 
 
   std::vector<std::string> getResponses(); 
+  std::vector<int> getUsers(); 
   void clearMessage(); 
-  void pushBack(std::string message); 
+  void pushBack(std::string message);
+  void appendUser(int user);  
 
 
 private:
