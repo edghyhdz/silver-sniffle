@@ -20,11 +20,26 @@ This is just a first draft of the server
 #include <set>
 #include <map>
 
+void updateDictionary(int key, std::string value, std::map<int, std::string> *dictionary){
+  std::map<int, std::string>::iterator it = dictionary->find(key); 
+
+  // Updates key if found
+  if (it != dictionary->end()){
+    it->second = value; 
+  }
+  // Else creates new key/value pair
+  else {
+    dictionary->insert(std::make_pair(key, value));
+  }
+}
 
 int main() {
   // Create a socket
   int listening = socket(AF_INET, SOCK_STREAM, 0);
   std::set<int> loggedUsers; 
+
+  // Key containing public keys
+  std::map<int, std::string> userToPK; 
 
   if (listening == -1) {
     std::cerr << "Can't create a socket!";
