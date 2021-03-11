@@ -1,11 +1,8 @@
 /*
-From this repository of a multipleclient server fromm Sloan Kelly
-Code adapted to work on linux
-References: https://bitbucket.org/sloankelly/youtube-source-repository/src/39d0e0460016338163d43d9bc01d4a45b1826619/cpp/networking/MultipleClientsBarebonesServer/?at=master
-
-This is just a first draft of the server
+Server class declaration
 */
 
+#include "MultipleClients.h"
 #include <arpa/inet.h>
 #include <iostream>
 #include <netdb.h>
@@ -17,10 +14,15 @@ This is just a first draft of the server
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <set>
-#include <map>
 
-void updateDictionary(int key, std::string value, std::map<int, std::string> *dictionary){
+Server::Server() { this->initServer(); }
+
+Server::~Server() {
+  FD_CLR(_listening, &_master);
+  close(_listening);
+}
+
+void Server::updateDictionary(int key, std::string value, std::map<int, std::string> *dictionary){
   std::map<int, std::string>::iterator it = dictionary->find(key); 
 
   // Updates key if found
@@ -33,15 +35,10 @@ void updateDictionary(int key, std::string value, std::map<int, std::string> *di
   }
 }
 
-int main() {
-  // Create a socket
-  int listening = socket(AF_INET, SOCK_STREAM, 0);
-  std::set<int> loggedUsers; 
+int Server::initServer() {
+  this->_listening = socket(AF_INET, SOCK_STREAM, 0);
 
-  // Key containing public keys
-  std::map<int, std::string> userToPK; 
-
-  if (listening == -1) {
+  if (_listening == -1) {
     std::cerr << "Can't create a socket!";
     return -1;
   }
@@ -52,27 +49,26 @@ int main() {
   hint.sin_port = htons(54000);
   inet_pton(AF_INET, "0.0.0.0", &hint.sin_addr);
 
-  if (bind(listening, (sockaddr *)&hint, sizeof(hint)) == -1) {
+  if (bind(_listening, (sockaddr *)&hint, sizeof(hint)) == -1) {
     std::cerr << "Can't bind to IP/Port";
     return -2;
   }
   // Mark socket for listening in
-  if (listen(listening, SOMAXCONN) == -1) {
+  if (listen(_listening, SOMAXCONN) == -1) {
     std::cerr << "Can't listen";
     return -3;
   }
 
-  fd_set master;
-
-  FD_ZERO(&master);
+  FD_ZERO(&_master);
   // Add to set
-  FD_SET(listening, &master);
+  FD_SET(_listening, &_master);
+}
 
+void Server::runServer() {
   // Servers may only accept connection and receive a message
-
   while (true) {
     // copies all
-    auto copy = master;
+    auto copy = _master;
     int socketCount = select(FD_SETSIZE, &copy, nullptr, nullptr, nullptr);
 
     for (int sock = 0; sock <= FD_SETSIZE - 1; ++sock) {
@@ -80,25 +76,25 @@ int main() {
         continue;
       sockaddr_in req_addr;
 
-      if (sock == listening) {
+      if (sock == _listening) {
 
         // Accept new connection
-        auto client = accept(listening, nullptr, nullptr);
+        auto client = accept(_listening, nullptr, nullptr);
 
         // Add new connection to the list of connected clients
-        FD_SET(client, &master);
-        loggedUsers.insert(client); 
+        FD_SET(client, &_master);
+        _loggedUsers.insert(client);
         std::string all_users;
-        for (int user : loggedUsers) {
+        for (int user : _loggedUsers) {
           all_users += std::to_string(user) + ";";
         }
+
         // Send welcome message
         send(client, all_users.c_str(), all_users.size() + 1, 0);
 
         // Have tell you who has joined the chat
         for (int outSock = 0; outSock <= FD_SETSIZE - 1; ++outSock) {
-
-          if (outSock != listening && outSock != sock) {
+          if (outSock != _listening && outSock != sock) {
             std::ostringstream ss;
             ss << "USER #" << client << " has joined the chat\r\n";
             std::string strOut = ss.str();
@@ -115,14 +111,14 @@ int main() {
         if (bytesIn <= 0) {
           // drop client
           close(sock);
-          FD_CLR(sock, &master);
+          FD_CLR(sock, &_master);
 
           // Send message to other clients that user has left the chat
           for (int outSock = 0; outSock <= FD_SETSIZE - 1; ++outSock) {
-            if (outSock != listening && outSock != sock) {
+            if (outSock != _listening && outSock != sock) {
               std::ostringstream ss;
               ss << "USER #" << sock << " has left the chat";
-              loggedUsers.erase(sock); 
+              _loggedUsers.erase(sock);
               std::string strOut = ss.str();
               send(outSock, strOut.c_str(), strOut.size() + 1, 0);
             }
@@ -131,20 +127,15 @@ int main() {
         } else {
           // send message to other clients, and not listening socket
           for (int outSock = 0; outSock <= FD_SETSIZE - 1; ++outSock) {
-            if (outSock != listening && outSock != sock) {
+            if (outSock != _listening && outSock != sock) {
               std::ostringstream ss;
               ss << "USER #" << sock << ": " << buf;
               std::string strOut = ss.str();
-              send(outSock, strOut.c_str(), strOut.size() + 1, 0);      
+              send(outSock, strOut.c_str(), strOut.size() + 1, 0);
             }
           }
         }
       }
     }
   }
-
-  FD_CLR(listening, &master);
-  close(listening);
-
-  return 0;
 }
