@@ -45,7 +45,7 @@ public:
   void clearMessage(); 
   void pushBack(std::string message);
   void appendUser(int user);  
-
+  std::string getPublicKey(); 
 
 private:
   char *&_ipAddress;
@@ -53,7 +53,6 @@ private:
   int _sockFD;
   int _connectR;
   ArrivingMessages _arrivingMessages; 
-  bool _updatedResponse;
   std::mutex *_mtx; 
 };
 

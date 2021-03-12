@@ -122,7 +122,6 @@ std::vector<std::string> Client::getResponses(){
 
 Client::Client(char *&ipAddress, char *&portNum) : _ipAddress(ipAddress), _portNum(portNum){
   this->_mtx = new std::mutex();
-  this->_updatedResponse = false; 
   this->createConnection(); 
 }
 
@@ -130,7 +129,6 @@ void Client::runClient(){
 
   // While loop:
   char buf[4096];
-
   bool firstMessage = true; 
   do {
     // Wait for response
@@ -159,9 +157,19 @@ void Client::runClient(){
   close(_sockFD);
 } 
 
+// Send messages to server
 void Client::runSendMessage(){
+    bool firstMessage = true; 
     do {
       std::this_thread::sleep_for(std::chrono::milliseconds(2)); 
+
+      // First message to server includes public key of client
+      if (firstMessage){
+        std::string pK = this->getPublicKey(); 
+        send(_sockFD, pK.c_str(), pK.size() + 1, 0); 
+        firstMessage = false; 
+      }
+
       // If there is a new message
       if (!this->_arrivingMessages.messageIsEmpty()){
         // Send to server
@@ -211,4 +219,12 @@ int Client::createConnection() {
   }
 
   return 0; 
+}
+
+// Sends public key as first message
+std::string Client::getPublicKey(){
+  // Load public key
+  // return it and send it
+  return "-----BEGIN RSA PUBLIC KEY-----"; 
+
 }
