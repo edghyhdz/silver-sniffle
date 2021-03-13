@@ -14,20 +14,7 @@ Server class declaration
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
-
-bool findWord(std::string &sentence, std::string &&word) {
-  int pos = 0;
-  while (true) {
-    pos = sentence.find(word, pos++);
-    if (pos != std::string::npos) {
-      pos++;
-    } else {
-      return true;
-    }
-    break;
-  }
-  return false;
-}
+#include "../utils/utility.h"
 
 Server::Server() { this->initServer(); }
 
@@ -63,15 +50,28 @@ bool Server::userFirstMessage(int k) {
 }
 
 void Server::getPK(int key, std::string message){
-  bool foundKey = findWord(message, "-----BEGIN RSA PUBLIC KEY-----");
+  bool missingKey = Utils::findWord(message, "-----BEGIN RSA PUBLIC KEY-----");
 
-  if (foundKey){
+  if (!missingKey){
+    std::cout << "Key socket #" << std::to_string(key) << ": " << message << std::endl; 
     this->updateDictionary(key, message, &_userToPK); 
   }
   else {
     // ? IF KEY NOT FOUND?
+    std::string empty_key{"-----NOT FOUND-----"}; 
+    this->updateDictionary(key, empty_key, &_userToPK); 
   }
+}
 
+std::string Server::getPK(int key){
+  // If key was not found should return empty string
+  return _userToPK.at(key); 
+}
+
+void Server::eraseMaps(int sock){
+  _loggedUsers.erase(sock);
+  _userFirstMessage.erase(sock);
+  _userToPK.erase(sock);
 }
 
 int Server::initServer() {
@@ -158,10 +158,8 @@ void Server::runServer() {
               std::ostringstream ss;
               ss << "USER #" << sock << " has left the chat";
 
-              // TODO: erase them all in private method
-              _loggedUsers.erase(sock);
-              _userFirstMessage.erase(sock);
-              _userToPK.erase(sock);
+              // Remove user from maps
+              this->eraseMaps(sock); 
 
               std::string strOut = ss.str();
               send(outSock, strOut.c_str(), strOut.size() + 1, 0);
@@ -175,13 +173,13 @@ void Server::runServer() {
 
           // Check if it's users' first message
           // First message is sent via the client containing the pk
-          std::string test_message = ""; 
+          std::string pK = ""; 
           if (this->userFirstMessage(sock)) {
-            std::cout << "did it go here? message: " << strOut << std::endl;
             // Set to false afterwards
             this->updateDictionary(sock, false, &this->_userFirstMessage);
             this->getPK(sock, strOut);
-            test_message = "GOT PUBLIC KEY"; 
+
+            std::string pK = this->getPK(sock); 
             // send(outSock, test_message.c_str(), test_message.size() + 1, 0);
           }
 
@@ -189,19 +187,13 @@ void Server::runServer() {
           for (int outSock = 0; outSock <= FD_SETSIZE - 1; ++outSock) {
             if (outSock != _listening && outSock != sock) {
 
-              if (test_message == ""){
+              if (pK == ""){
                 send(outSock, strOut.c_str(), strOut.size() + 1, 0);
               }
               else{
-              // If users' first message, send back publick key
-              
-                send(outSock, test_message.c_str(), test_message.size() + 1, 0);
+                // If users' first message, send back publick key
+                send(outSock, pK.c_str(), pK.size() + 1, 0);
               }
-              // if (!this->userFirstMessage(sock)) {
-
-              //   std::string pk{"test publick key :-D"}; 
-              //   send(outSock, pk.c_str(), pk.size() + 1, 0);
-              // }
             }
           }
         }
