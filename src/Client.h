@@ -4,6 +4,7 @@
 #include <mutex>
 #include <curses.h>
 #include <vector>
+#include <map>
 #include "utility.h"
 
 // Auxiliary class to queue messages in a thread-safe manner
@@ -15,17 +16,20 @@ public:
   void setMessage(std::string message); 
   std::vector<std::string> getResponses();
   std::string getMessage(); 
-  void setUsers(std::string users);
+  void setUserData(std::string users);
   void appendUser(int user); 
   void removeUser(std::string message); 
   std::vector<int> getUsers(); 
   bool messageIsEmpty(); 
   void clearMessage(); 
+  void updatePK(int key, std::string pK);
+  std::map<int, std::string> getPKeys();
 
 private:
   std::vector<std::string> _responses;
   std::string _message; 
-  std::vector<int> _users; 
+  std::vector<int> _users;
+  std::map<int, std::string> _userToPK;  
   std::mutex _mutex;
 };
 
@@ -46,7 +50,10 @@ public:
   void clearMessage(); 
   void pushBack(std::string message);
   void appendUser(int user);  
-  std::string getPublicKey(); 
+  std::string sendPublicKey(); 
+  std::map<int, std::string> getPKeys(); 
+
+  void updatePK(int user, std::string pK); 
 
 private:
   char *&_ipAddress;
