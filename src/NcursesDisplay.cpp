@@ -42,11 +42,58 @@ int addUser(std::string message){
   return -1; 
 }
 
+// Auxiliary method -> Add public key if found
+void addPK(std::string message, std::shared_ptr<Client> client){
+  bool notPK = Utils::findWord(message, "-----BEGIN RSA PUBLIC KEY-----");
+
+  std::string key;
+  int value; 
+  std::string pK;
+
+  if (!notPK) {
+    std::replace(message.begin(), message.end(), ' ', '$');
+    std::replace(message.begin(), message.end(), '\n', ';');
+    std::replace(message.begin(), message.end(), '#', ' ');
+
+    std::istringstream sline(message);
+    sline >> key >> value >> pK;
+
+    std::replace(pK.begin(), pK.end(), '$', ' ');
+    std::replace(pK.begin(), pK.end(), ';', '\n');
+    // Delete first two characters
+    pK = pK.substr(2, pK.size());
+    client->updatePK(value, pK); 
+  } 
+}
+
 void NcursesDisplay::DisplayUsers(WINDOW *window, std::shared_ptr<Client> client){
   const int column{1}; 
   int row{1}; 
 
   std::vector<int> users = client->getUsers();
+
+  // // TEST: 
+  // std::map<int, std::string> usersToPK = client->getPKeys();
+
+  // std::map<int, std::string>::iterator it = usersToPK.find(4);
+
+  // // Updates key if found
+  // if (it != usersToPK.end()) {
+  //   std::string testkey = usersToPK.at(4); 
+  //   mvwprintw(window, 5, column, testkey.c_str());
+  // } else {
+  //   mvwprintw(window, 5, column, "USER 4");
+  // }
+
+  // std::map<int, std::string>::iterator ite = usersToPK.find(5);
+
+  // // Updates key if found
+  // if (ite != usersToPK.end()) {
+  //   std::string testkey = usersToPK.at(5); 
+  //   mvwprintw(window, 10, column, testkey.c_str());
+  // } else {
+  //   mvwprintw(window, 10, column, "USER 5");
+  // }
 
   wattron(window, A_BOLD);
   wattron(window, COLOR_PAIR(4));
@@ -77,10 +124,7 @@ void NcursesDisplay::DisplayMessages(WINDOW *window, viewwin *view, std::shared_
   // Get vector with responses from server < get this out
   std::vector<std::string> responses = client->getResponses(); 
 
-  // TODO: Get publicKey into map and delete it from response dictionary
-  // It should come in the first server message if any user has already logged in
-
-  // Check for new users
+  // Check for new users or new users' public keys
   if (prevMessages.size() > 0) {
     int diff = responses.size() - prevMessages.size();
     // If there are new messages
@@ -90,16 +134,23 @@ void NcursesDisplay::DisplayMessages(WINDOW *window, viewwin *view, std::shared_
         // Check if this response is a new user or not
         std::string tempResponse = responses[i];
         int userID = addUser(tempResponse);
+
+        // Add private key if any
+        addPK(tempResponse, client); 
         if (userID != -1) {
           client->appendUser(userID); 
         }
       }
-      // In case first message is the new user
+      // In case first messages is the new user
     } else if (responses.size() <= 2) {
-      std::string tempResponse = responses[0];
-      int userID = addUser(tempResponse);
-      if (userID != -1) {
-        client->appendUser(userID);
+      for (int i = 0; i < responses.size(); i++) {
+        std::string tempResponse = responses[i];
+        int userID = addUser(tempResponse);
+        // Add private key if any
+        addPK(tempResponse, client);
+        if (userID != -1) {
+          client->appendUser(userID);
+        }
       }
     }
   }
@@ -129,9 +180,12 @@ void NcursesDisplay::DisplayMessages(WINDOW *window, viewwin *view, std::shared_
 
   for (std::string &response : responses) {
     if (counter >= diff) {
+      bool isNotPK = Utils::findWord(response, "-----BEGIN RSA PUBLIC KEY-----");
       int color_print = Utils::findWord(response, "YOU: ") ? 0 : 4;
       wattron(window, COLOR_PAIR(color_print));
-      mvwprintw(window, response_counter++, 1, (Utils::trim(response)).c_str());
+      std::string response_text;
+      response_text = isNotPK ? Utils::trim(response) : "----Received users' Public Key----";
+      mvwprintw(window, response_counter++, 1, response_text.c_str());
       wattroff(window, COLOR_PAIR(color_print));
     }
     counter++;
