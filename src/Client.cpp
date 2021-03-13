@@ -50,19 +50,43 @@ void ArrivingMessages::clearMessage(){
   _message.clear(); 
 }
 
-void ArrivingMessages::setUsers(std::string users) {
+void ArrivingMessages::setUserData(std::string data) {
   std::lock_guard<std::mutex> lock(_mutex);
-  std::istringstream sline(users);
+  std::istringstream sline(data);
   int n;
   char c;
+  std::string users_string; 
   while (sline >> n >> c && c == ';') {
     this->_users.push_back(n);
+    users_string += std::to_string(n) + ";";
+  }
+
+  // Get public keys
+  std::istringstream pkeys(data);
+
+  while (pkeys.good()) {
+    std::string pKRaw;
+    getline(pkeys, pKRaw, ',');
+    if (pKRaw != "" && pKRaw != users_string) {
+      // Split string to user/rsa_pk pairs
+      std::vector<std::string> userToPK = Utils::split(pKRaw, ":"); 
+      int user = stoi(userToPK[0]); 
+      std::string pK = userToPK[1]; 
+
+      // update userToPK maps
+      Utils::updateDictionary(user, pK, &_userToPK); 
+    }
   }
 }
 
 std::vector<int> ArrivingMessages::getUsers(){
   std::lock_guard<std::mutex> lock(_mutex);
   return _users;
+}
+
+std::map<int, std::string> ArrivingMessages::getPKeys(){
+  std::lock_guard<std::mutex> lock(_mutex);
+  return _userToPK;
 }
 
 void ArrivingMessages::removeUser(std::string message){
@@ -84,6 +108,9 @@ void ArrivingMessages::removeUser(std::string message){
     // Remove user that's left
     _users.erase(std::remove(_users.begin(), _users.end(), value),
                  _users.end());
+    
+    // Remove users' public key
+    _userToPK.erase(value); 
   }
 }
 
@@ -99,8 +126,21 @@ void ArrivingMessages::appendUser(int user){
   }
 }
 
+void ArrivingMessages::updatePK(int user, std::string pK){
+  std::lock_guard<std::mutex> lock(_mutex);
+  Utils::updateDictionary(user, pK, &_userToPK); 
+}
+
+void Client::updatePK(int user, std::string pK){
+  this->_arrivingMessages.updatePK(user, pK); 
+}
+
 void Client::appendUser(int user){
   this->_arrivingMessages.appendUser(user); 
+}
+
+std::map<int, std::string> Client::getPKeys() {
+  return this->_arrivingMessages.getPKeys();
 }
 
 std::vector<int> Client::getUsers(){
@@ -145,9 +185,9 @@ void Client::runClient(){
       std::ostringstream ss;
       ss << buf;
       // First message contains user information
-      // Second message contains RSA public key
+      // Like user socket and user's rsa public key
       if (firstMessage) {
-        this->_arrivingMessages.setUsers(ss.str());
+        this->_arrivingMessages.setUserData(ss.str());
         firstMessage = false;
       } else { // All other messages
         // Check if message is related to user leaving chat
@@ -167,7 +207,7 @@ void Client::runSendMessage(){
 
       // First message to server includes public key of client
       if (firstMessage){
-        std::string pK = this->getPublicKey(); 
+        std::string pK = this->sendPublicKey(); 
         send(_sockFD, pK.c_str(), pK.size() + 1, 0); 
         firstMessage = false; 
       }
@@ -224,9 +264,8 @@ int Client::createConnection() {
 }
 
 // Sends public key as first message
-std::string Client::getPublicKey(){
+std::string Client::sendPublicKey(){
   // Load public key
   // return it and send it
-  return "-----BEGIN RSA PUBLIC KEY-----"; 
-
+  return "-----BEGIN RSA PUBLIC KEY-----\nMIIBCgKCAQEAu5XROlqBxbJoSaIYSRiPZ8jWvE5epjkmUoQFlE3B4CCewGZ4bqAe\n-----END RSA PUBLIC KEY-----"; 
 }
