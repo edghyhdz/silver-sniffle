@@ -69,7 +69,6 @@ void ArrivingMessages::removeUser(std::string message){
   std::lock_guard<std::mutex> lock(_mutex);
   // remove user from _users;
   bool hasNotLeft = Utils::findWord(message, "has left the chat");
-  // bool hasNotLeft = true; 
 
   std::string key;
   int value;
@@ -125,6 +124,11 @@ Client::Client(char *&ipAddress, char *&portNum) : _ipAddress(ipAddress), _portN
   this->createConnection(); 
 }
 
+Client::~Client(){
+  //	Close the socket
+  close(_sockFD);
+}
+
 void Client::runClient(){
 
   // While loop:
@@ -141,6 +145,7 @@ void Client::runClient(){
       std::ostringstream ss;
       ss << buf;
       // First message contains user information
+      // Second message contains RSA public key
       if (firstMessage) {
         this->_arrivingMessages.setUsers(ss.str());
         firstMessage = false;
@@ -152,9 +157,6 @@ void Client::runClient(){
       }
     }
   } while (true);
-
-  //	Close the socket
-  close(_sockFD);
 } 
 
 // Send messages to server

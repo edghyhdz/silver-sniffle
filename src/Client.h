@@ -4,7 +4,7 @@
 #include <mutex>
 #include <curses.h>
 #include <vector>
-#include "utils/utility.h"
+#include "utility.h"
 
 // Auxiliary class to queue messages in a thread-safe manner
 class ArrivingMessages {
@@ -33,6 +33,7 @@ class Client {
 
 public:
   Client(char *&ipAddress, char *&portNum);
+  ~Client(); 
   int createConnection();
   void runClient();
   void runSendMessage(); 
