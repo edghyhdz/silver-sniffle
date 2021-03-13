@@ -13,6 +13,9 @@ include_directories(${CURL_INCLUDE_DIR})
 # Find all executables
 file(GLOB project_SRCS src/*.cpp) #src/*.h
 
+# Make directories to get certs from
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/executable/certificates)
+
 # Include utils
 include_directories(include)
 include_directories(utils)
