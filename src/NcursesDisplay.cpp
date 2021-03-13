@@ -9,9 +9,11 @@
 #include <assert.h>
 #include <string.h>
 #include <memory>
-#include "utils/utility.h"
-#include "Client.h"
 #include <sstream>
+#include <assert.h>
+#include "Client.h"
+#include "utility.h"
+
 
 static std::mutex mtx;
 
@@ -74,7 +76,9 @@ void NcursesDisplay::DisplayMessages(WINDOW *window, viewwin *view, std::shared_
 
   // Get vector with responses from server < get this out
   std::vector<std::string> responses = client->getResponses(); 
-  // NcursesDisplay::rollMessageVector(&responses, window->_maxy - 1); 
+
+  // TODO: Get publicKey into map and delete it from response dictionary
+  // It should come in the first server message if any user has already logged in
 
   // Check for new users
   if (prevMessages.size() > 0) {
@@ -90,7 +94,8 @@ void NcursesDisplay::DisplayMessages(WINDOW *window, viewwin *view, std::shared_
           client->appendUser(userID); 
         }
       }
-    } else if (responses.size() == 1) {
+      // In case first message is the new user
+    } else if (responses.size() <= 2) {
       std::string tempResponse = responses[0];
       int userID = addUser(tempResponse);
       if (userID != -1) {
