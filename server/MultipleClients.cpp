@@ -116,19 +116,30 @@ void Server::runServer() {
       sockaddr_in req_addr;
 
       if (sock == _listening) {
-
         // Accept new connection
         auto client = accept(_listening, nullptr, nullptr);
 
         // Add new connection to the list of connected clients
         FD_SET(client, &_master);
+
+        std::set<int> loggedUsersTemp = _loggedUsers; 
         _loggedUsers.insert(client);
         std::string all_users;
         for (int user : _loggedUsers) {
           all_users += std::to_string(user) + ";";
+        }    
+
+        // Append public keys from other logged users
+        for (int user : _loggedUsers){
+          if (user != client){
+            std::string temp_pk = _userToPK.at(user); 
+            all_users += "," + std::to_string(user) + ":" + temp_pk + ","; 
+          }
         }
 
-        // Send welcome message
+        std::cout << all_users << std::endl;   
+
+        // Send welcome message containing users logged in and pkeys
         send(client, all_users.c_str(), all_users.size() + 1, 0);
 
         // Have tell you who has joined the chat
@@ -168,20 +179,21 @@ void Server::runServer() {
 
         } else {
           std::ostringstream ss;
-          ss << "USER #" << sock << ": " << buf;
-          std::string strOut = ss.str();
-
+          ss << buf;
+          std::string strOutFirst = ss.str(); 
+          
           // Check if it's users' first message
           // First message is sent via the client containing the pk
           std::string pK = ""; 
           if (this->userFirstMessage(sock)) {
             // Set to false afterwards
             this->updateDictionary(sock, false, &this->_userFirstMessage);
-            this->getPK(sock, strOut);
+            this->getPK(sock, strOutFirst);
 
             std::string pK = this->getPK(sock); 
-            // send(outSock, test_message.c_str(), test_message.size() + 1, 0);
           }
+          
+          std::string strOut = "USER #" + std::to_string(sock) + ": " + strOutFirst;
 
           // send message to other clients, and not listening socket
           for (int outSock = 0; outSock <= FD_SETSIZE - 1; ++outSock) {
