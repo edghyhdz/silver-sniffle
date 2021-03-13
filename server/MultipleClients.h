@@ -14,7 +14,8 @@ public:
   void updateDictionary(int key, T value, std::map<int, T> *dictionary);
   bool userFirstMessage(int key); 
   void getPK(int key, std::string message); 
-
+  std::string getPK(int key);
+  void eraseMaps(int sock); 
 
 private:
   int _listening;
