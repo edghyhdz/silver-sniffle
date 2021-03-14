@@ -16,6 +16,7 @@ Class definition
 
 class RSAEncrypt {
 public:
+  RSAEncrypt(); 
   void loadKeys();      // Load secret key
   void encryptWithPK(); // Encrypt using public key
   void encryptWithSK(); // Encrypt with secret key
