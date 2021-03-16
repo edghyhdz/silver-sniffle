@@ -14,6 +14,8 @@
 #include <algorithm>
 #include <fstream>
 
+// TODO: THERE IS AN BELOW, FIX GOTO: ISSUE
+
 // Class definitions
 
 int ArrivingMessages::getSize(){
@@ -355,6 +357,13 @@ void Client::runClient(){
 
         std::string temp_string = ss.str(); 
         bool hasNotLeft = Utils::findWord(temp_string, "has joined the chat");
+
+        /*
+        ISSUE:
+        First issue -> try to decrypt ----BEGIN ... string, whenever its sent (should not do that)
+        Second issue -> when unknown user logs, find dictionary that has ----NOT FOUND----- in order
+                        to know that the public key was not found
+        */
 
         if (hasNotLeft) {
           char *sendbuf = const_cast<char *>(buf);
