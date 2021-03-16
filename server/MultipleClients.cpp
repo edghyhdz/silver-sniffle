@@ -53,7 +53,7 @@ void Server::getPK(int key, std::string message){
   bool missingKey = Utils::findWord(message, "-----BEGIN RSA PUBLIC KEY-----");
 
   if (!missingKey){
-    std::cout << "Key socket #" << std::to_string(key) << ": " << message << std::endl; 
+    std::cout << "Key socket #" << std::to_string(key) << message << std::endl; 
     this->updateDictionary(key, message, &_userToPK); 
   }
   else {
@@ -181,7 +181,13 @@ void Server::runServer() {
           std::ostringstream ss;
           ss << buf;
           std::string strOutFirst = ss.str(); 
-          
+
+          // char *sendbuf = const_cast<char *>(buf);
+          char *sendbuf = new char[256];
+          for (int i = 0; i < 256; i++) {
+            sendbuf[i] = buf[i];
+          }
+
           // Check if it's users' first message
           // First message is sent via the client containing the pk
           std::string pK = ""; 
@@ -192,15 +198,26 @@ void Server::runServer() {
 
             std::string pK = this->getPK(sock); 
           }
+          std::string user_header = "USER #" + std::to_string(sock) + ": "; 
           
-          std::string strOut = "USER #" + std::to_string(sock) + ": " + strOutFirst;
-
+          // Concatenate both char * manually
+          char *tempbuf = new char[256 + user_header.length()];
+          int j = 0; 
+          for (int i = 0; i < 256 + user_header.length(); i++) {
+            if (i < user_header.length()) {
+              tempbuf[i] = user_header[i];
+            } else {
+              tempbuf[i] = sendbuf[j];
+              j++; 
+            }
+          }
+          
           // send message to other clients, and not listening socket
           for (int outSock = 0; outSock <= FD_SETSIZE - 1; ++outSock) {
             if (outSock != _listening && outSock != sock) {
 
               if (pK == ""){
-                send(outSock, strOut.c_str(), strOut.size() + 1, 0);
+                send(outSock, tempbuf, 256 + user_header.length() + 1, 0);
               }
               else{
                 // If users' first message, send back publick key
@@ -208,6 +225,8 @@ void Server::runServer() {
               }
             }
           }
+          delete sendbuf; 
+          delete tempbuf; 
         }
       }
     }
