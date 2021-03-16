@@ -6,10 +6,15 @@
 #include <vector>
 #include <map>
 #include "utility.h"
+#include "RSAEncrypt.h"
 
 // Auxiliary class to queue messages in a thread-safe manner
 class ArrivingMessages {
 public:
+
+  // Encrypt / Decrypt messages
+  RSAEncrypt rsa = RSAEncrypt(); 
+
   // getters / setter
   int getSize();
   void pushBack(std::string response);
@@ -24,6 +29,8 @@ public:
   void clearMessage(); 
   void updatePK(int key, std::string pK);
   std::map<int, std::string> getPKeys();
+  std::string sendPublicKey();
+  void decryptMessage(int index, int user, std::string encryptedMsg); 
 
 private:
   std::vector<std::string> _responses;
@@ -53,7 +60,11 @@ public:
   std::string sendPublicKey(); 
   std::map<int, std::string> getPKeys(); 
 
-  void updatePK(int user, std::string pK); 
+  void updatePK(int user, std::string pK);
+  bool addPK(std::string message);
+  int addUser(std::string message); 
+  void decryptMessage(std::string message, int index); 
+  void processMessages(); 
 
 private:
   char *&_ipAddress;
@@ -61,7 +72,9 @@ private:
   int _sockFD;
   int _connectR;
   ArrivingMessages _arrivingMessages; 
-  std::mutex *_mtx; 
+  std::vector<std::string> _prevResponses; 
+  std::mutex *_mtx;
+ 
 };
 
 #endif
