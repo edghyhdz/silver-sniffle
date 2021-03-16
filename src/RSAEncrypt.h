@@ -18,10 +18,14 @@ class RSAEncrypt {
 public:
   RSAEncrypt(); 
   void loadKeys();      // Load secret key
-  void encryptWithPK(); // Encrypt using public key
-  void encryptWithSK(); // Encrypt with secret key
-  void decryptWithSK(); // Decrypt with secret key
-  void decryptWithPK(); // Decrypt with public key
+  std::string encryptWithPK(const std::string &message, const std::string &pK); // Encrypt using public key
+  std::string encryptWithSK(const std::string &message, const std::string &sK); // Encrypt with secret key
+  std::string decryptWithSK(const std::string &message, const std::string &sK); // Decrypt with secret key
+  std::string decryptWithPK(const std::string &message, const std::string &pK); // Decrypt with public key
+
+  std::string getPK(){ return _publicKey; }
+  std::string getSK(){ return _secretKey; } 
+
 private:
   std::string _secretKey;
   std::string _publicKey;
