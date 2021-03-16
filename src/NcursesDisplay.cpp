@@ -17,57 +17,6 @@
 
 static std::mutex mtx;
 
-// // Works as a copy of the chat messages
-// // Used as comparison basis to search for new logged users
-// static std::vector<std::string> prevMessages; 
-
-// // This function will just be superficial
-// // Will apend new users to be displayed in the users window
-// int addUser(std::string message){
-
-//   bool hasNotLeft = Utils::findWord(message, "has joined the chat");
-
-//   std::string key;
-//   int value;
-
-//   if (!hasNotLeft) {
-//     std::replace(message.begin(), message.end(), ' ', '_');
-//     std::replace(message.begin(), message.end(), '#', ' ');
-//     std::replace(message.begin(), message.end(), '_', ' ');
-
-//     std::istringstream sline(message);
-//     sline >> key >> value;
-//     return value; 
-//   }
-//   return -1; 
-// }
-
-// // Auxiliary method -> Add public key if found
-// bool addPK(std::string message, std::shared_ptr<Client> client){
-//   bool notPK = Utils::findWord(message, "-----BEGIN RSA PUBLIC KEY-----");
-
-//   std::string key;
-//   int value; 
-//   std::string pK;
-
-//   if (!notPK) {
-//     std::replace(message.begin(), message.end(), ' ', '$');
-//     std::replace(message.begin(), message.end(), '\n', ';');
-//     std::replace(message.begin(), message.end(), '#', ' ');
-
-//     std::istringstream sline(message);
-//     sline >> key >> value >> pK;
-
-//     std::replace(pK.begin(), pK.end(), '$', ' ');
-//     std::replace(pK.begin(), pK.end(), ';', '\n');
-//     // Delete first two characters
-//     pK = pK.substr(2, pK.size());
-//     client->updatePK(value, pK); 
-//     return true;
-//   } 
-//   return false; 
-// }
-
 void NcursesDisplay::DisplayUsers(WINDOW *window, std::shared_ptr<Client> client){
   const int column{1}; 
   int row{1}; 
