@@ -148,17 +148,20 @@ void ArrivingMessages::decryptMessage(int index, int user, std::string encrypted
   std::map<int, std::string>::iterator it = _userToPK.find(user);
   std::string message = _responses[index];
 
-  // Decrypt message if found
-  if (it != _userToPK.end()) {
-    // Fetch public key
-    // std::string pK = it->second;
+  // If there is a RSA PUBLIC KEY -> do not decrypt
+  bool isNotPK = Utils::findWord(message, "-----BEGIN RSA PUBLIC KEY-----");
 
-    // Decrypt message with users public key
-    _responses[index] = "DECRYPTED: " + this->rsa.decryptWithPK(encryptedMsg, this->rsa.getPK());
-  }
-  // Else, indicate user is using external client
-  else {
-    _responses[index] = "~EXTERNAL~" + message;
+  // Decrypt message if found
+  if (it != _userToPK.end() && isNotPK) {
+    // Fetch public key
+    std::string pK = it->second;
+    if (pK != "-----NOT FOUND-----") {
+      // Decrypt message with users public key
+      _responses[index] = "USER #" + std::to_string(user) + ": " + this->rsa.decryptWithPK(encryptedMsg, pK);
+    } else {
+      std::string new_message = Utils::trim(message).c_str();
+      _responses[index] = "|EXTERNAL| " + new_message;
+    }
   }
 }
 
@@ -188,10 +191,12 @@ void Client::decryptMessage(std::string message, int index){
       while ((p = message_copy.find(user_string)) != std::string::npos){
         message_copy.replace(p, tempWord.length(), "");
       } 
-      message_copy = message_copy.substr(1, message_copy.size());
+      
+      // Keep only the part without the facing 'USER #'
+      encryptedMsg = message_copy.substr(1, message_copy.size());
 
       // Decrypt received message
-      this->_arrivingMessages.decryptMessage(index, user, message_copy);
+      this->_arrivingMessages.decryptMessage(index, user, encryptedMsg);
     }
   }
 }
@@ -218,6 +223,7 @@ int Client::addUser(std::string message){
 }
 
 // Auxiliary method -> Add public key if found
+// Only used if user logs into chat at a later stage
 bool Client::addPK(std::string message){
 
   bool notPK = Utils::findWord(message, "-----BEGIN RSA PUBLIC KEY-----");
@@ -227,6 +233,13 @@ bool Client::addPK(std::string message){
   std::string pK;
 
   if (!notPK) {
+
+    std::ofstream myfile("./log_messages.txt", std::ios_base::app); 
+    if (myfile.is_open()){
+      myfile << "FETCHED MESSAGE WITH PK:\n";
+      myfile << message << "\n\n"; 
+    }
+
     std::replace(message.begin(), message.end(), ' ', '$');
     std::replace(message.begin(), message.end(), '\n', ';');
     std::replace(message.begin(), message.end(), '#', ' ');
@@ -238,7 +251,15 @@ bool Client::addPK(std::string message){
     std::replace(pK.begin(), pK.end(), ';', '\n');
     // Delete first two characters
     pK = pK.substr(2, pK.size());
-    this->updatePK(value, pK); 
+    this->updatePK(value, pK);
+
+    if (myfile.is_open()) {
+      myfile << "FETCHED USER: " << value << ".\n"; 
+      myfile << "FETCHED PK:\n"; 
+      myfile << pK << "\n"; 
+      myfile.close(); 
+    }
+
     return true;
   } 
   return false; 
@@ -344,7 +365,7 @@ void Client::runClient(){
       // Get response into output string
       std::ostringstream ss;
       ss << buf;
-      std::string test; 
+      std::string encryptedMsg; 
       // First message contains user information
       // Like user socket and user's rsa public key
       if (firstMessage) {
@@ -356,22 +377,26 @@ void Client::runClient(){
         this->_arrivingMessages.removeUser(ss.str());
 
         std::string temp_string = ss.str(); 
+        int userID = this->addUser(temp_string);
+        userID = (userID == -1) ? 1 : userID;
+        std::string user_header = "USER #" + std::to_string(userID) + ": "; 
+
         bool hasNotLeft = Utils::findWord(temp_string, "has joined the chat");
+        bool isNotPK = Utils::findWord(temp_string, "-----BEGIN RSA PUBLIC KEY-----");
 
-        /*
-        ISSUE:
-        First issue -> try to decrypt ----BEGIN ... string, whenever its sent (should not do that)
-        Second issue -> when unknown user logs, find dictionary that has ----NOT FOUND----- in order
-                        to know that the public key was not found
-        */
-
-        if (hasNotLeft) {
+        if (hasNotLeft && isNotPK) {
           char *sendbuf = const_cast<char *>(buf);
-          for (int i = 0; i < 265; i++) {
-            test.push_back(sendbuf[i]);
+          for (int i = 0; i < user_header.length() + 256; i++) {
+            encryptedMsg.push_back(sendbuf[i]);
+          }
+          std::ofstream myfile("./log_messages.txt", std::ios_base::app); 
+          if (myfile.is_open()){
+            myfile << "\nMessages: \n"; 
+            myfile << encryptedMsg; 
+            myfile.close(); 
           }
 
-          this->_arrivingMessages.pushBack(test);
+          this->_arrivingMessages.pushBack(encryptedMsg);
         } else {
           this->_arrivingMessages.pushBack(temp_string);
         }
