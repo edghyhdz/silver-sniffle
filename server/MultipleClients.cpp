@@ -195,11 +195,10 @@ void Server::runServer() {
             // Set to false afterwards
             this->updateDictionary(sock, false, &this->_userFirstMessage);
             this->getPK(sock, strOutFirst);
-
-            std::string pK = this->getPK(sock); 
+            pK = this->getPK(sock);
           }
+
           std::string user_header = "USER #" + std::to_string(sock) + ": "; 
-          
           // Concatenate both char * manually
           char *tempbuf = new char[256 + user_header.length()];
           int j = 0; 
@@ -215,13 +214,13 @@ void Server::runServer() {
           // send message to other clients, and not listening socket
           for (int outSock = 0; outSock <= FD_SETSIZE - 1; ++outSock) {
             if (outSock != _listening && outSock != sock) {
-
               if (pK == ""){
                 send(outSock, tempbuf, 256 + user_header.length() + 1, 0);
               }
               else{
                 // If users' first message, send back publick key
-                send(outSock, pK.c_str(), pK.size() + 1, 0);
+                std::string header_pk = user_header + pK; 
+                send(outSock, header_pk.c_str(), header_pk.size() + 1, 0);
               }
             }
           }
