@@ -27,6 +27,10 @@ void NcursesDisplay::DisplayUsers(WINDOW *window, std::shared_ptr<Client> client
   wattron(window, COLOR_PAIR(4));
   mvwprintw(window, row++, column, "Logged Users:");
   wattroff(window, COLOR_PAIR(4));
+  wattron(window, COLOR_PAIR(2));
+  mvwprintw(window, window->_maxy - 2, column, "Encrypted");
+  mvwprintw(window, window->_maxy - 1, column, "from end to end"); 
+  wattroff(window, COLOR_PAIR(2));
   wattroff(window, A_BOLD);
 
   for (int user : users){
@@ -76,7 +80,14 @@ void NcursesDisplay::DisplayMessages(WINDOW *window, viewwin *view, std::shared_
   for (std::string &response : responses) {
     if (counter >= diff) {
       bool isNotPK = Utils::findWord(response, "-----BEGIN RSA PUBLIC KEY-----");
+      bool isNotAut =Utils::findWord(response, "|EXTERNAL| ");
+
+      // Choose color depending whether is you, external user, or 
+      // Notification of public key being received
       int color_print = Utils::findWord(response, "YOU: ") ? 0 : 4;
+      color_print = !isNotPK ? 2 : color_print;
+      color_print = !isNotAut ? 3 : color_print; 
+
       wattron(window, COLOR_PAIR(color_print));
       std::string response_text;
       response_text = isNotPK ? Utils::trim(response) : "----Received users' Public Key----";
