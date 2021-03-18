@@ -65,12 +65,17 @@ public:
   int addUser(std::string message); 
   void decryptMessage(std::string message, int index); 
   void processMessages(); 
+  bool generateKeys(); 
+
+  int getCountFM();
+  void addCountFM(); 
 
 private:
   char *&_ipAddress;
   char *&_portNum;
   int _sockFD;
   int _connectR;
+  int _firstMessages; 
   ArrivingMessages _arrivingMessages; 
   std::vector<std::string> _prevResponses; 
   std::mutex *_mtx;
