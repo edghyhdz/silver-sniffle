@@ -14,9 +14,14 @@
 #include <algorithm>
 #include <fstream>
 
-// TODO: THERE IS AN BELOW, FIX GOTO: ISSUE
 
-// Class definitions
+/*
+Class declarations -> ArrivingMessages and Client classes
+
+-------------------------------------------------------------------------------
+ArrivingMessages class declaration
+-------------------------------------------------------------------------------
+*/ 
 
 int ArrivingMessages::getSize(){
   std::lock_guard<std::mutex> lock(_mutex); 
@@ -165,6 +170,17 @@ void ArrivingMessages::decryptMessage(int index, int user, std::string encrypted
   }
 }
 
+
+/*
+-------------------------------------------------------------------------------
+Client class declaration
+-------------------------------------------------------------------------------
+*/ 
+
+bool Client::generateKeys(){
+  return this->_arrivingMessages.rsa.generateKeys(); 
+}
+
 void Client::decryptMessage(std::string message, int index){
   bool notUser = Utils::findWord(message, "USER #");
   std::string key, encryptedMsg, user_string;
@@ -233,13 +249,6 @@ bool Client::addPK(std::string message){
   std::string pK;
 
   if (!notPK) {
-
-    std::ofstream myfile("./log_messages.txt", std::ios_base::app); 
-    if (myfile.is_open()){
-      myfile << "FETCHED MESSAGE WITH PK:\n";
-      myfile << message << "\n\n"; 
-    }
-
     std::replace(message.begin(), message.end(), ' ', '$');
     std::replace(message.begin(), message.end(), '\n', ';');
     std::replace(message.begin(), message.end(), '#', ' ');
@@ -252,13 +261,6 @@ bool Client::addPK(std::string message){
     // Delete first two characters
     pK = pK.substr(2, pK.size());
     this->updatePK(value, pK);
-
-    if (myfile.is_open()) {
-      myfile << "FETCHED USER: " << value << ".\n"; 
-      myfile << "FETCHED PK:\n"; 
-      myfile << pK << "\n"; 
-      myfile.close(); 
-    }
 
     return true;
   } 
@@ -340,8 +342,21 @@ std::vector<std::string> Client::getResponses(){
   return this->_arrivingMessages.getResponses(); 
 }
 
+int Client::getCountFM(){
+  std::lock_guard<std::mutex> lock (*this->_mtx); 
+  return this->_firstMessages; 
+}
+
+void Client::addCountFM(){
+  std::lock_guard<std::mutex> lock (*this->_mtx); 
+  this->_firstMessages++; 
+}
+
 Client::Client(char *&ipAddress, char *&portNum) : _ipAddress(ipAddress), _portNum(portNum){
+  // Generate private and public keys
+  this->generateKeys(); 
   this->_mtx = new std::mutex();
+  this->_firstMessages = 0; 
   this->createConnection();
 }
 
@@ -355,6 +370,7 @@ void Client::runClient(){
   // While loop:
   char buf[4096];
   bool firstMessage = true; 
+  
   do {
     // Wait for response
     memset(buf, 0, 4096);
@@ -366,6 +382,13 @@ void Client::runClient(){
       std::ostringstream ss;
       ss << buf;
       std::string encryptedMsg; 
+
+      // We need this count, since the first two messages may
+      // Contain some information that comes without encryption
+      if (this->getCountFM() <= 2){
+        this->addCountFM(); 
+      }
+
       // First message contains user information
       // Like user socket and user's rsa public key
       if (firstMessage) {
@@ -389,13 +412,6 @@ void Client::runClient(){
           for (int i = 0; i < user_header.length() + 256; i++) {
             encryptedMsg.push_back(sendbuf[i]);
           }
-          std::ofstream myfile("./log_messages.txt", std::ios_base::app); 
-          if (myfile.is_open()){
-            myfile << "\nMessages: \n"; 
-            myfile << encryptedMsg; 
-            myfile.close(); 
-          }
-
           this->_arrivingMessages.pushBack(encryptedMsg);
         } else {
           this->_arrivingMessages.pushBack(temp_string);
