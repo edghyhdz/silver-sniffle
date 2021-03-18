@@ -13,6 +13,10 @@ https://stackoverflow.com/questions/11705815/client-and-server-communication-usi
 #include "openssl/rsa.h"
 #include <string.h>
 
+/*
+TODO: Remove this workaround
+
+*/
 
 /*
 Class declaration
@@ -47,7 +51,10 @@ std::string RSAEncrypt::decryptWithPK(const std::string &message, const std::str
 	int ret = 0;
 	std::string sub_str;
 	int pos = 0;
-	 // Decrypt the ciphertext in segments
+
+  int counter = 0; 
+
+	// Decrypt the ciphertext in segments
 	while (pos < message.length()) {
 		sub_str = message.substr(pos, len);
 		memset(sub_text, 0, len + 1);
@@ -56,6 +63,10 @@ std::string RSAEncrypt::decryptWithPK(const std::string &message, const std::str
 			decrypt_text.append(std::string(sub_text, ret));
 			pos += len;
 		}
+    counter++; 
+    if (counter>5000){
+      break; 
+    }
 	}
  
 	 // release memory  
@@ -214,4 +225,53 @@ void RSAEncrypt::loadKeys(){
         pKey = pKey.substr(0, pKey.size() - 1);
         this->_publicKey = pKey; 
     }
+}
+
+/*
+Reference:
+https://www.dynamsoft.com/codepool/how-to-use-openssl-generate-rsa-keys-cc.html
+
+*/
+bool RSAEncrypt::generateKeys(){
+  int ret = 0;
+  RSA *r = NULL;
+  BIGNUM *bne = NULL;
+  BIO *bp_public = NULL, *bp_private = NULL;
+
+  int bits = 2048;
+  unsigned long e = RSA_F4;
+
+  // 1. generate rsa key
+  bne = BN_new();
+  ret = BN_set_word(bne, e);
+  if (ret != 1) {
+    goto free_all;
+  }
+
+  r = RSA_new();
+  ret = RSA_generate_key_ex(r, bits, bne, NULL);
+  if (ret != 1) {
+    goto free_all;
+  }
+
+  // 2. save public key
+  bp_public = BIO_new_file("./certificates/public.pem", "w+");
+  ret = PEM_write_bio_RSAPublicKey(bp_public, r);
+  if (ret != 1) {
+    goto free_all;
+  }
+
+  // 3. save private key
+  bp_private = BIO_new_file("./certificates/private.pem", "w+");
+  ret = PEM_write_bio_RSAPrivateKey(bp_private, r, NULL, NULL, 0, NULL, NULL);
+
+  // 4. free
+free_all:
+
+  BIO_free_all(bp_public);
+  BIO_free_all(bp_private);
+  RSA_free(r);
+  BN_free(bne);
+
+  return (ret == 1);
 }
