@@ -22,6 +22,7 @@ public:
   std::string encryptWithSK(const std::string &message, const std::string &sK); // Encrypt with secret key
   std::string decryptWithSK(const std::string &message, const std::string &sK); // Decrypt with secret key
   std::string decryptWithPK(const std::string &message, const std::string &pK); // Decrypt with public key
+  bool generateKeys(); 
 
   std::string getPK(){ return _publicKey; }
   std::string getSK(){ return _secretKey; } 
