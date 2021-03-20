@@ -53,7 +53,6 @@ std::string RSAEncrypt::decryptWithPK(const std::string &message, const std::str
 	int pos = 0;
 
   int counter = 0; 
-
 	// Decrypt the ciphertext in segments
 	while (pos < message.length()) {
 		sub_str = message.substr(pos, len);
@@ -69,7 +68,7 @@ std::string RSAEncrypt::decryptWithPK(const std::string &message, const std::str
     }
 	}
  
-	 // release memory  
+	// release memory  
 	delete sub_text;
 	BIO_free_all(keybio);
 	RSA_free(rsa);
@@ -178,6 +177,7 @@ std::string RSAEncrypt::decryptWithSK(const std::string &message, const std::str
   int ret = 0;
   std::string sub_str;
   int pos = 0;
+  int counter = 0; 
   // Decrypt the ciphertext in segments
   while (pos < message.length()) {
     sub_str = message.substr(pos, key_len);
@@ -188,6 +188,12 @@ std::string RSAEncrypt::decryptWithSK(const std::string &message, const std::str
     if (ret >= 0) {
       decrypt_text.append(std::string(sub_text, ret));
       pos += key_len;
+    }
+    counter++;
+    // Really bad workaround, but just for now
+    // To avoid encryption get stucked forever
+    if (counter > 5000){
+      break; 
     }
   }
   // release memory
