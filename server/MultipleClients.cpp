@@ -180,12 +180,72 @@ void Server::runServer() {
         } else {
           std::ostringstream ss;
           ss << buf;
-          std::string strOutFirst = ss.str(); 
 
-          // char *sendbuf = const_cast<char *>(buf);
-          char *sendbuf = new char[256];
-          for (int i = 0; i < 256; i++) {
-            sendbuf[i] = buf[i];
+          // Get string where we will get message length information
+          std::string getLength = ss.str();  
+          int msgLength;
+          std::string temp_string, removeHeader;
+
+          std::replace(getLength.begin(), getLength.end(), '\n', ' ');
+
+          // Get message length, included in the beginning of the package
+          std::istringstream sline(getLength);
+          sline >> temp_string >> msgLength;
+
+          // Needed get message length and then remove it from final message
+          removeHeader = "-----BEGIN\n" + std::to_string(msgLength) + "\nEND-----";
+
+          // Append full message
+          std::string strMessage;
+          char *strbuf = const_cast<char *>(buf);
+          for (int i = 0; i < msgLength + removeHeader.length(); i++) {
+            strMessage.push_back(strbuf[i]);
+          }
+
+          // Remove length information
+          size_t p = -1;
+          std::string tempWord = removeHeader + "";
+          while ((p = strMessage.find(removeHeader)) != std::string::npos) {
+            strMessage.replace(p, tempWord.length(), "");
+          }
+
+          // Get messages for every user where we have a valid public key
+          std::vector<std::string> messages = Utils::split(strMessage, "-----NEWMESSAGE-----");
+
+          // User header to be added to final message
+          std::string user_header = "USER #" + std::to_string(sock) + ": ";
+
+          // Get encrypted messages for all client users
+          std::map<int, char *> userToMessage;  
+          for (std::string msg : messages) {
+            int usr;
+            std::string tempString, getUser;
+            getUser = msg; 
+
+            std::replace(getUser.begin(), getUser.end(), '_', ' ');
+            std::istringstream sline(getUser);
+            sline >> usr;
+            
+            // Remove user info from original message
+            size_t p = -1;
+            std::string tempWord = std::to_string(usr) + "_";
+            while ((p = msg.find(std::to_string(usr) + "_")) != std::string::npos) {
+              msg.replace(p, tempWord.length(), "");
+            }
+
+            // Concatenate both char * manually
+            char *tempbuf = new char[256 + user_header.length()];
+            int j = 0;
+            for (int i = 0; i < 256 + user_header.length(); i++) {
+              if (i < user_header.length()) {
+                tempbuf[i] = user_header[i];
+              } else {
+                tempbuf[i] = msg[j];
+                j++;
+              }
+            }
+            // Create message to be sent to each logged user
+            userToMessage.insert(std::make_pair(usr, tempbuf));
           }
 
           // Check if it's users' first message
@@ -194,28 +254,23 @@ void Server::runServer() {
           if (this->userFirstMessage(sock)) {
             // Set to false afterwards
             this->updateDictionary(sock, false, &this->_userFirstMessage);
-            this->getPK(sock, strOutFirst);
+            this->getPK(sock, ss.str());
             pK = this->getPK(sock);
-          }
-
-          std::string user_header = "USER #" + std::to_string(sock) + ": "; 
-          // Concatenate both char * manually
-          char *tempbuf = new char[256 + user_header.length()];
-          int j = 0; 
-          for (int i = 0; i < 256 + user_header.length(); i++) {
-            if (i < user_header.length()) {
-              tempbuf[i] = user_header[i];
-            } else {
-              tempbuf[i] = sendbuf[j];
-              j++; 
-            }
           }
           
           // send message to other clients, and not listening socket
           for (int outSock = 0; outSock <= FD_SETSIZE - 1; ++outSock) {
             if (outSock != _listening && outSock != sock) {
               if (pK == ""){
-                send(outSock, tempbuf, 256 + user_header.length() + 1, 0);
+                std::map<int, char*>::iterator it = userToMessage.find(outSock);
+                if (it != userToMessage.end()) {
+                  send(outSock, it->second, 256 + user_header.length() + 1, 0);
+                  // Release buffer memory
+                  delete it->second; 
+                } else {
+                  // If user is not logged with official client, send giberish
+                  send(outSock, ss.str().c_str(), ss.str().length() + 1, 0);
+                }
               }
               else{
                 // If users' first message, send back publick key
@@ -224,8 +279,6 @@ void Server::runServer() {
               }
             }
           }
-          delete sendbuf; 
-          delete tempbuf; 
         }
       }
     }
