@@ -12,6 +12,7 @@ https://stackoverflow.com/questions/11705815/client-and-server-communication-usi
 #include <sstream>
 #include "openssl/rsa.h"
 #include <string.h>
+#include "Variables.h"
 
 /*
 TODO: Remove this workaround
@@ -207,30 +208,30 @@ std::string RSAEncrypt::decryptWithSK(const std::string &message, const std::str
 // As per default, it will load keys from
 // the ./certificates folder
 void RSAEncrypt::loadKeys(){
-
-    std::ifstream sKeyRaw("./certificates/private.pem"); 
-    std::string sKey;
-    if (sKeyRaw){
-        std::string line; 
-        while (getline(sKeyRaw, line)){
-            sKey += line + "\n"; 
-        }
-        // Remove trailing space
-        sKey = sKey.substr(0, sKey.size() - 1);
-        this->_secretKey = sKey; 
+  std::string path = CERTIFICATES_PATH;
+  std::ifstream sKeyRaw(path + "private.pem");
+  std::string sKey;
+  if (sKeyRaw) {
+    std::string line;
+    while (getline(sKeyRaw, line)) {
+      sKey += line + "\n";
     }
+    // Remove trailing space
+    sKey = sKey.substr(0, sKey.size() - 1);
+    this->_secretKey = sKey;
+  }
 
-    std::ifstream pKeyRaw("./certificates/public.pem"); 
-    std::string pKey;
-    if (pKeyRaw){
-        std::string line; 
-        while (getline(pKeyRaw, line)){
-            pKey += line + "\n"; 
-        }
-        // Remove trailing space
-        pKey = pKey.substr(0, pKey.size() - 1);
-        this->_publicKey = pKey; 
+  std::ifstream pKeyRaw(path + "public.pem");
+  std::string pKey;
+  if (pKeyRaw) {
+    std::string line;
+    while (getline(pKeyRaw, line)) {
+      pKey += line + "\n";
     }
+    // Remove trailing space
+    pKey = pKey.substr(0, pKey.size() - 1);
+    this->_publicKey = pKey;
+  }
 }
 
 /*
@@ -239,6 +240,7 @@ https://www.dynamsoft.com/codepool/how-to-use-openssl-generate-rsa-keys-cc.html
 
 */
 bool RSAEncrypt::generateKeys(){
+  std::string path = CERTIFICATES_PATH; 
   int ret = 0;
   RSA *r = NULL;
   BIGNUM *bne = NULL;
@@ -261,14 +263,14 @@ bool RSAEncrypt::generateKeys(){
   }
 
   // 2. save public key
-  bp_public = BIO_new_file("./certificates/public.pem", "w+");
+  bp_public = BIO_new_file((path + "public.pem").c_str(), "w+");
   ret = PEM_write_bio_RSAPublicKey(bp_public, r);
   if (ret != 1) {
     goto free_all;
   }
 
   // 3. save private key
-  bp_private = BIO_new_file("./certificates/private.pem", "w+");
+  bp_private = BIO_new_file((path + "private.pem").c_str(), "w+");
   ret = PEM_write_bio_RSAPrivateKey(bp_private, r, NULL, NULL, 0, NULL, NULL);
 
   // 4. free
