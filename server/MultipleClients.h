@@ -1,6 +1,14 @@
 /*
+References: 
+Part of this code was taken from user Sloan Kelly, and adapted to this script to run on linux and work with 
+Ncurses
+link to repo:
+https://bitbucket.org/sloankelly/youtube-source-repository/src/master/cpp/networking/MultipleClientsBarebonesServer/MultipleClientsBarebonesServer/
+
+-----------------------
 Server class definition
 */
+
 #include <set>
 #include <map>
 
