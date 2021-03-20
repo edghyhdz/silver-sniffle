@@ -40,9 +40,30 @@ std::vector<std::string> ArrivingMessages::getResponses(){
 
 void ArrivingMessages::setMessage(std::string message){
   std::lock_guard<std::mutex> lock(_mutex);
-  // Encrypt message with secret key
-  std::string encryptedMsg = this->rsa.encryptWithSK(Utils::trim(message), this->rsa.getSK()); 
-  _message = encryptedMsg;
+
+  // Encrypt message with all users' public keys
+  // and append it into one single message
+  std::string encryptedMsg, msgLength; 
+
+  for (int user : this->_users){
+    std::map<int, std::string>::iterator it = _userToPK.find(user);
+
+    if (it != _userToPK.end()) {
+      std::string pK = it->second;
+      if (pK != "-----NOT FOUND-----"){
+        // Encrypt message and append user at the beginning of the message
+        std::string user_header = std::to_string(user) + "_";
+        encryptedMsg += user_header + this->rsa.encryptWithPK(Utils::trim(message), it->second);
+        encryptedMsg += "-----NEWMESSAGE-----";
+      }
+    }
+  }
+
+  // Get message length to append to encrypted msg
+  // This is information relevant to the server
+  msgLength = "-----BEGIN\n" + std::to_string(encryptedMsg.length())+ "\nEND-----"; 
+
+  _message = msgLength + encryptedMsg;
 }
 
 std::string ArrivingMessages::getMessage(){
@@ -80,8 +101,8 @@ void ArrivingMessages::setUserData(std::string data) {
     if (pKRaw != "" && pKRaw != users_string) {
       // Split string to user/rsa_pk pairs
       std::vector<std::string> userToPK = Utils::split(pKRaw, ":"); 
-      int user = stoi(userToPK[0]); 
-      std::string pK = userToPK[1]; 
+      int user = stoi(userToPK[0]);
+      std::string pK = userToPK[1];
 
       // update userToPK maps
       Utils::updateDictionary(user, pK, &_userToPK); 
@@ -161,8 +182,8 @@ void ArrivingMessages::decryptMessage(int index, int user, std::string encrypted
     // Fetch public key
     std::string pK = it->second;
     if (pK != "-----NOT FOUND-----") {
-      // Decrypt message with users public key
-      _responses[index] = "USER #" + std::to_string(user) + ": " + this->rsa.decryptWithPK(encryptedMsg, pK);
+      // Decrypt message with users private key
+      _responses[index] = "USER #" + std::to_string(user) + ": " + this->rsa.decryptWithSK(encryptedMsg, this->rsa.getSK());
     } else {
       std::string new_message = Utils::trim(message).c_str();
       _responses[index] = "|EXTERNAL| " + new_message;
