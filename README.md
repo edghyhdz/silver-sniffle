@@ -67,13 +67,13 @@ As per default, the port to which the server is connecting to is `54000`
 **Starting the Server** (In case you are running the server)
 
 ```sh
-source silver-server
+source silver_server
 ```
 
 **Starting the Client**
 
 ```sh
-source silver-sniffle -a 127.0.0.1 54000
+source silver_sniffle -a 127.0.0.1 54000
 ```
 
 `127.0.0.1` and the port `54000` could be changed for example to your own `TCP` address if you've got one. Of course, the server would have to be running on that address. 
@@ -122,7 +122,7 @@ source silver_server
 ```
 Once the server is up and running, you should be able to run the client like so,
 ```sh
-source silver-sniffle -a 127.0.0.1 54000
+source silver_sniffle -a 127.0.0.1 54000
 ```
 You can always re-route the client to another address.
 
