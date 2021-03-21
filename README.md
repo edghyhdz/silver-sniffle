@@ -110,7 +110,7 @@ The final project folder structure is the following,
     .
     ├── ...
     ├── build                     # Directory were project was built
-    │   ├──silver_server             # Server executable
+    │   ├──silver_server          # Server executable
     │   ├── executable            # Client executable location
     │   │   └─── silver_sniffle   # Client executable
     │   └── certificates          # key pair location
